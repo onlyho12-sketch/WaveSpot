@@ -9,9 +9,16 @@ __pycache__/
 # 실행 데이터
 db/*.db
 db/*.db-*
+db/checkpoint.json
 
-# 라이선스 미표기 데이터에서 만든 모델 · 샘플 (로컬 전용, 재배포 금지)
+# 모델 파일은 설치 단계에서 학습해 만듦 (저장소에는 학습 코드만)
 backend/app/ml/artifacts/
+
+# 웹 시연판 빌드 산출물 (server/web/build.ps1 로 다시 만듦)
+frontend/public/py/
+server/web/.venv-web/
+server/web/artifacts-web/
+.vercel/
 
 # 환경 · 편집기
 .env
@@ -27,3 +34,7 @@ docs/*.zip
 frontend/_이전UI_*/
 *.docx
 *.pdf
+
+# 수신기 펌웨어: 비밀번호가 들어가는 설정 · 빌드 산출물
+firmware/**/config.h
+firmware/.pio/

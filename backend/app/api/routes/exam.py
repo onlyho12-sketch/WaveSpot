@@ -1,5 +1,5 @@
 """시험 세션 · 장비 점검 · 기준선 · 진행 제어."""
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.engine import engine
@@ -45,6 +45,9 @@ async def baseline():
 
 @router.post("/session/start")
 async def start():
+    if engine.session and engine.session.state == "baseline" and not engine.selfcheck_ok():
+        bad = [c["label"] for c in engine.selfcheck() if c["ok"] is False]
+        raise HTTPException(409, f"자가 점검을 통과하지 못했습니다: {', '.join(bad)}")
     engine.start()
     await engine.broadcast_status()
     return engine.status()

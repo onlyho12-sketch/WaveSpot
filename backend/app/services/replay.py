@@ -23,6 +23,13 @@ class SimDevice:
     rotate: float = 0.0  # 주소 변경 주기 (초, 0 = 고정)
     meta: dict[str, Any] = field(default_factory=dict)
     wifi: list[tuple[float, float, str]] = field(default_factory=list)  # (시작, 끝, 용도)
+    duty: tuple[float, float] | None = None  # (켜진 초, 주기) · 짧게 끊어 보내기 재현
+    evade: bool = False  # 휴대형이 다가오면 끄기 재현 (순회 중에는 신호 없음)
+
+    def on(self, t: float) -> bool:
+        if not (self.t_on <= t < self.t_off):
+            return False
+        return self.duty is None or (t - self.t_on) % self.duty[1] < self.duty[0]
 
 
 def _demo() -> dict[str, Any]:
@@ -68,16 +75,38 @@ class Replay:
         self.rng = np.random.default_rng(seed)
         self.radio = sim.Radio(self.rng)
         self.pos: dict[str, tuple[float, float, float]] = {}
+        self.walking: set[str] = set()  # 지금 휴대형이 순회 중인 기기 (evade 기기는 이 동안 끔)
+        self.fake_until = -1e9  # 가짜 측정값 주입 재현
         for d in self.devices:
-            if d.where == "desk":
-                self.pos[d.base] = (sim.ROOM_W / 2, 0.3, 0.0)
-            elif d.where == "tv":
-                self.pos[d.base] = (0.3, 0.2, 0.0)
-            elif d.where == "outside":
-                self.pos[d.base] = sim.outside_xy(self.rng)
-            else:
-                x, y = sim.seat_xy(int(d.where))
-                self.pos[d.base] = (x + self.rng.uniform(-0.2, 0.2), y + self.rng.uniform(-0.4, 0.4), 0.0)
+            self._place(d)
+
+    def _place(self, d: SimDevice) -> None:
+        if d.where == "desk":
+            self.pos[d.base] = (sim.ROOM_W / 2, 0.3, 0.0)
+        elif d.where == "tv":
+            self.pos[d.base] = (0.3, 0.2, 0.0)
+        elif d.where == "outside":
+            self.pos[d.base] = sim.outside_xy(self.rng)
+        else:
+            x, y = sim.seat_xy(int(d.where))
+            self.pos[d.base] = (x + self.rng.uniform(-0.2, 0.2), y + self.rng.uniform(-0.4, 0.4), 0.0)
+
+    # ---------- 우회 · 해킹 재현 (설계안 20장 실험 8) ----------
+    def add_device(self, d: SimDevice) -> None:
+        self.devices.append(d)
+        self._place(d)
+
+    def move(self, base: str, seat: int) -> bool:
+        """허용된 기기를 좌석으로 옮김 (입실 전 미리 켜 둔 기기를 몸에 지님 = 정상 기기 위장)."""
+        for d in self.devices:
+            if d.base == base:
+                d.where = seat
+                self._place(d)
+                return True
+        return False
+
+    def _silent(self, d: SimDevice) -> bool:
+        return d.evade and any(a.startswith(d.base + "-") for a in self.walking)
 
     def addr(self, d: SimDevice, t: float) -> str:
         k = int((t - d.t_on) // d.rotate) if d.rotate else 0
@@ -92,7 +121,7 @@ class Replay:
         out: list[Reading] = []
         down = self.node_down(t)
         for d in self.devices:
-            if not (d.t_on <= t < d.t_off):
+            if not d.on(t) or self._silent(d):
                 continue
             x, y, wall = self.pos[d.base]
             meta = dict(d.meta)
@@ -103,6 +132,11 @@ class Replay:
             for n, v in self.radio.sample(d.base, x, y, wall, t).items():
                 if n != down:
                     out.append(Reading(t, self.addr(d, t), n, v, meta))
+        if t < self.fake_until:
+            # 외부 조력자가 수신기를 흉내 내 보낸 값: 등록 안 된 수신기 R9 + 네 모서리 모두 아주 강한(물리적으로 불가능한) 세기
+            out.append(Reading(t, "fake-r9", "R9", -40.0, {"company": "0x0075", "interval": 100}))
+            for n in sim.NODES:
+                out.append(Reading(t, "fake-dev-00", n, -38.0 + float(self.rng.normal(0, 1)), {"company": "0x0075", "interval": 100}))
         return out
 
     def confiscate(self, addr: str, t: float) -> None:
@@ -118,9 +152,9 @@ class Replay:
 
     def device_xy(self, addr: str) -> tuple[float, float] | None:
         for d in self.devices:
-            if addr.startswith(d.base + "-") and d.t_off > 1e8:
+            if addr.startswith(d.base + "-") and d.t_off > 1e8 and not d.evade:
                 return self.pos[d.base][:2]
-        return None
+        return None  # 꺼져 있거나 순회 중 끈 기기 -> 휴대형에 안 잡힘
 
     def walk(self, seats: list[int], addr: str, dwell: int = 2):
         """휴대형 순회 (v10 검증 ⑤): 좌석 뒤 통로 0.6 m, 좌석마다 dwell초(기본 2초 = 0.25초 x 8건) 머무름, 앞 · 뒤 2회 통과.

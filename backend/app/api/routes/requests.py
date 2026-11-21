@@ -8,6 +8,7 @@ from sqlmodel import Session, select
 from app.agent.agent import clock
 from app.core.db import get_session
 from app.models import AgentEvent, SearchRequest, SupervisorNote
+from app.services import integrity
 from app.services.engine import engine
 
 router = APIRouter(tags=["requests"])
@@ -75,6 +76,8 @@ async def submit_result(rid: int, body: Result, s: Session = Depends(get_session
         raise HTTPException(404, "요청을 찾을 수 없습니다")
     if req.state in ("found", "not_found", "unresolved"):
         raise HTTPException(409, "이미 결과가 입력된 요청입니다")
+    if "result" in engine.active:  # 장애 재현: 저장 확인 응답 없음 -> 앱이 태블릿에 먼저 저장하고 나중에 전송
+        raise HTTPException(503, "저장 확인 응답 없음")
     req.found_seat, req.note, req.resolved_at = body.seat, body.note, datetime.now(timezone.utc)
     s.add(req)
     s.commit()
@@ -108,6 +111,8 @@ def add_note(body: NoteIn, s: Session = Depends(get_session)):
         raise HTTPException(422, "내용을 입력하세요")
     note = SupervisorNote(session_id=_sid(), sim_time=engine.t, text=text[:500])
     s.add(note)
+    s.flush()
+    integrity.append(s, note.session_id, "note", note.id, integrity.note_body(note))  # 의견도 해시 체인에
     s.commit()
     s.refresh(note)
     start = engine.session.exam_start_label if engine.session else "09:00"
@@ -116,9 +121,12 @@ def add_note(body: NoteIn, s: Session = Depends(get_session)):
 
 @router.post("/allowlist")
 async def add_allow(body: AllowIn):
-    """감독관이 기기를 허용 목록에 추가 (감독관 폰 · 시험장 장비). 열린 수색 요청은 '허용 등록'으로 닫힘."""
+    """감독관이 기기를 허용 목록에 추가 (감독관 폰 · 시험장 장비). 열린 수색 요청은 '허용 등록'으로 닫힘.
+    v11: 허용 목록은 입실 전에만 바꿀 수 있음. 시험이 시작되면 잠기고, 변경 시도는 접근 기록에 '거부'로 남음."""
     _sid()
     if engine.agent is None:
         raise HTTPException(409, "진행 중인 시험이 없습니다")
+    if engine.session and engine.session.state in ("running", "ended"):
+        raise HTTPException(423, "시험 중에는 허용 목록이 잠겨 있습니다 (입실 전 기준선에서만 등록)")
     closed = await engine.allow_device(body.device_id, body.label.strip() or "감독관 등록")
     return {"closed": [r.id for r in closed], **engine.status()}

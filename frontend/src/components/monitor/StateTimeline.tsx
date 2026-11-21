@@ -36,7 +36,7 @@ export function StateBand({ states, total, now, height = "h-7", showNow = true }
   return (
     <div className={cn("relative overflow-hidden rounded-sm bg-subtle", height)}>
       {segs.filter((g) => g.v).map((g) => (
-        <div key={g.from} className={cn("absolute inset-y-0 flex items-center overflow-hidden border-r border-surface/70 px-1.5 text-[11px] font-semibold whitespace-nowrap text-white", FILL[g.v!])}
+        <div key={g.from} className={cn("absolute inset-y-0 flex items-center overflow-hidden border-r border-surface/70 px-1.5 text-fs11 font-semibold whitespace-nowrap text-white", FILL[g.v!])}
           style={{ left: `${(g.from / total) * 100}%`, width: `${((g.to - g.from) / total) * 100}%` }}
           title={`${NAME[g.v!]} · ${g.to - g.from}분`}>
           {g.v !== "ok" && (g.to - g.from) / total > 0.06 ? NAME[g.v!] : ""}
@@ -50,7 +50,7 @@ export function StateBand({ states, total, now, height = "h-7", showNow = true }
 export function Axis({ total, start }: { total: number; start: string }) {
   const ticks = Array.from({ length: Math.floor(total / 20) + 1 }, (_, i) => i * 20)
   return (
-    <div className="relative mt-1 h-4 text-[11px] text-fg-3">
+    <div className="relative mt-1 h-4 text-fs11 text-fg-3">
       {ticks.map((m) => (
         <span key={m} className={cn("num absolute -translate-x-1/2", m === 0 && "translate-x-0", m === total && "-translate-x-full")} style={{ left: `${(m / total) * 100}%` }}>
           {clockOf(m * 60, start)}
@@ -67,7 +67,7 @@ export function StateTimeline({ clock, events, requests, startLabel }: { clock: 
   return (
     <div>
       <div className="grid grid-cols-[64px_1fr] items-center gap-3">
-        <span className="text-[13px] font-semibold text-fg-2">교시 진행</span>
+        <span className="text-fs13 font-semibold text-fg-2">교시 진행</span>
         <StateBand states={states} total={total} now={now} />
       </div>
       <div className="grid grid-cols-[64px_1fr] gap-3">

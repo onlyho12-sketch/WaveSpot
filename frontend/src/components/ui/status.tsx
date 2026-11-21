@@ -28,7 +28,7 @@ export function Status({ tone, children, className }: { tone: Tone; children: Re
   )
 }
 
-/** 작은 꼬리표 (사다리 단계 · 모델 이름 등). 모서리 4px */
+/** 작은 꼬리표 (대응 단계 · 모델 이름 등). 모서리 4px */
 export function Tag({ tone = "neutral", solid = false, children, className }: { tone?: Tone; solid?: boolean; children: ReactNode; className?: string }) {
   const soft: Record<Tone, string> = {
     ok: "bg-ok-soft text-ok",
@@ -55,7 +55,7 @@ export function Panel({ title, aside, children, className, bodyClass }: { title?
     <section className={cn("rounded-lg border border-line bg-surface", className)}>
       {title && (
         <header className="flex min-h-12 items-center gap-3 border-b border-line px-4">
-          <h2 className="text-[15px] font-semibold">{title}</h2>
+          <h2 className="text-fs15 font-semibold">{title}</h2>
           {aside && <div className="ml-auto flex items-center gap-3 text-sm text-fg-3">{aside}</div>}
         </header>
       )}
@@ -79,7 +79,7 @@ export function Tracker({ steps, current, tone = "brand" }: { steps: { key: stri
               <div className="mx-auto size-1.5 rounded-full bg-fg-3" />
             )}
           </div>
-          <div className={cn("mt-1.5 truncate px-0.5 text-center text-[13px]", i < current ? "font-semibold text-fg" : i === current ? cn("font-bold", text) : "text-fg-3")}>{s.label}</div>
+          <div className={cn("mt-1.5 truncate px-0.5 text-center text-fs13", i < current ? "font-semibold text-fg" : i === current ? cn("font-bold", text) : "text-fg-3")}>{s.label}</div>
         </li>
       ))}
     </ol>

@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.main import api_router
+from app.api.security import access_middleware
 from app.core.config import settings
 from app.core.db import init_db
 from app.services.engine import lifespan_engine
@@ -24,6 +25,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="WaveSpot", lifespan=lifespan)
+app.middleware("http")(access_middleware)  # 역할별 권한 · 접근 기록
 app.add_middleware(CORSMiddleware, allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
                    allow_methods=["*"], allow_headers=["*"])
 app.include_router(api_router)

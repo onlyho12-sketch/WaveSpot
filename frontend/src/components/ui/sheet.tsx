@@ -8,7 +8,7 @@ export function Sheet({ open, onOpenChange, title, description, top, children, f
   onOpenChange: (o: boolean) => void
   title: ReactNode
   description?: ReactNode
-  top?: ReactNode // 제목 아래 고정 영역 (사다리 단계 등)
+  top?: ReactNode // 제목 아래 고정 영역 (대응 단계 등)
   children: ReactNode
   footer?: ReactNode
 }) {

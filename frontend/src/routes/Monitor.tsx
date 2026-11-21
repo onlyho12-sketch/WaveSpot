@@ -1,21 +1,22 @@
 // 감독 메인 · 감독관이 볼 것만: 지금 문제가 있나 → 어디를 → 무엇을 할지
 // 배치: 왼쪽 어두운 감독실 = 상단 정보 + 상태별 카운터 + 좌석 배치도 + 교시 타임라인
-//                          오른쪽 'AI 감지' 패널 = 점수 배지 카드 목록 (없으면 '이상 없음' 한 장)
-// 휴대폰: AI 감지가 먼저, 아래에 작은 감독실
+//                          오른쪽 'AI 신호 감지' 패널 = AI가 무선 신호로 찾은 숨은 기기 카드 목록 (없으면 '이상 없음' 한 장)
+// 휴대폰: AI 신호 감지가 먼저, 아래에 작은 감독실
+// v11 10장: 시스템이 멈추면 '이상 없음'이 아니라 '감시 중단 · 복구 중 · 위치 추정 중지'를 크게 보여 줌
+//           허용 목록은 시험이 시작되면 잠김 (입실 후 나타난 기기는 등록 불가) → 시험 중 '허용 목록 추가' 메뉴 없음
 import { Link, useNavigate } from "@tanstack/react-router"
-import { ChevronRight, ClipboardCheck, Eye, FileText, Footprints, ShieldCheck, ShieldPlus } from "lucide-react"
+import { ChevronRight, ClipboardCheck, Eye, FileText, Footprints, MapPinOff, RefreshCw, ShieldCheck, WifiOff } from "lucide-react"
 import { Pulse } from "./Admin"
 import { useMemo, useState } from "react"
-import { EvidenceSheet, RequestCard, target } from "@/components/monitor/RequestCard"
+import { EvidenceSheet, RequestCard } from "@/components/monitor/RequestCard"
 import { SeatMap, type SeatState, type ZoneMark } from "@/components/monitor/SeatMap"
 import { StateTimeline } from "@/components/monitor/StateTimeline"
 import { Button } from "@/components/ui/button"
-import { Confirm } from "@/components/ui/confirm"
 import { MenuItem } from "@/components/ui/menu"
+import { useChangeCount } from "@/lib/motion"
 import { Panel, Shape } from "@/components/ui/status"
-import type { AgentEvent, Clock, SearchRequest, TrackedDevice } from "@/lib/api"
-import { api } from "@/lib/api"
-import { patchStatus, useLive } from "@/lib/live"
+import type { AgentEvent, Clock, Health, SearchRequest, TrackedDevice } from "@/lib/api"
+import { useLive } from "@/lib/live"
 import { useIsPhone } from "@/lib/useIsPhone"
 import { clockOf, cn, isOpen, type Tone } from "@/lib/utils"
 
@@ -40,8 +41,8 @@ export function Monitor() {
   const phone = useIsPhone()
   const navigate = useNavigate()
   const [sheet, setSheet] = useState<number | null>(null)
-  const [allow, setAllow] = useState<{ device_id: string; what: string } | null>(null)
-  const [allowBusy, setAllowBusy] = useState(false)
+  const health = status?.health
+  const wide = health?.mode === "degraded" // 수신기 1대 끊김: 범위를 한 단계 넓혀 표시
 
   const requests = useMemo(() => Object.values(requestsMap).sort((a, b) => b.id - a.id), [requestsMap])
   const open = requests.filter(isOpen)
@@ -54,16 +55,16 @@ export function Monitor() {
   const zones = useMemo<ZoneMark[]>(() => {
     const z: ZoneMark[] = []
     for (const r of open) {
-      z.push({ zone: r.zone, kind: r.level >= 3 ? "request" : "candidate", label: `${r.zone2 ? "1순위" : "수색 구역"} · 근거 ${evidenceCount(r)}개` })
-      if (r.zone2 && !z.some((m) => m.zone === r.zone2)) z.push({ zone: r.zone2, kind: "candidate", label: "2순위" })
+      z.push({ zone: r.zone, kind: r.level >= 3 ? "request" : "candidate", label: `${r.zone2 ? "1순위" : "수색 범위"} · 근거 ${evidenceCount(r)}개`, wide })
+      if (r.zone2 && !z.some((m) => m.zone === r.zone2)) z.push({ zone: r.zone2, kind: "candidate", label: "2순위", wide })
     }
     for (const d of devices)
-      if (d.level === 1 && !z.some((m) => m.zone === d.zone)) {
+      if (d.level === 1 && d.zone != null && !z.some((m) => m.zone === d.zone)) {
         const t = lasting(events, d.device_id, now)
-        z.push({ zone: d.zone, kind: "watch", label: t ? `관찰 중 · ${t}` : "관찰 중" })
+        z.push({ zone: d.zone, kind: "watch", label: t ? `관찰 중 · ${t}` : "관찰 중", wide })
       }
     return z
-  }, [open, devices, events, now])
+  }, [open, devices, events, now, wide])
 
   const seats = useMemo(() => {
     const s: Record<number, SeatState> = {}
@@ -80,33 +81,18 @@ export function Monitor() {
 
   const nodes = Object.fromEntries((status?.nodes ?? []).map((n) => [n.node_id, n.status === "online"]))
 
-  /** 구역 ⋮ 메뉴: 휴대형 접근 · 근거 보기 · 결과 입력 · 허용 목록 추가 */
+  /** 범위 ⋮ 메뉴: 휴대형 접근 · 근거 보기 · 결과 입력 (허용 목록은 시험 중 잠김) */
   const zoneMenu = (z: number) => {
     const r = open.find((q) => q.zone === z || q.zone2 === z)
-    const d = devices.find((x) => x.zone === z && x.level >= 1 && x.request_id == null)
-    if (!r && !d) return null
+    if (!r) return null
     const goRoam = (id: number) => navigate({ to: "/roam/$id", params: { id: String(id) } })
     return (
       <>
-        {r && <MenuItem onClick={() => goRoam(r.id)}><Footprints />{r.state === "searching" ? "순회 화면" : "휴대형 접근"}</MenuItem>}
-        {r && <MenuItem onClick={() => setSheet(r.id)}><FileText />근거 보기</MenuItem>}
-        {r && r.level >= 3 && r.suspect_seat && <MenuItem onClick={() => goRoam(r.id)}><ClipboardCheck />결과 입력</MenuItem>}
-        <MenuItem onClick={() => setAllow(r ? { device_id: r.device_id, what: `${target(r)} · ${r.kind} 추정` } : { device_id: d!.device_id, what: `${z}구역 · ${d!.kind} 추정` })}>
-          <ShieldPlus />허용 목록 추가
-        </MenuItem>
+        <MenuItem onClick={() => goRoam(r.id)}><Footprints />{r.state === "searching" ? "순회 화면" : "휴대형 접근"}</MenuItem>
+        <MenuItem onClick={() => setSheet(r.id)}><FileText />근거 보기</MenuItem>
+        {r.level >= 3 && r.suspect_seat && <MenuItem onClick={() => goRoam(r.id)}><ClipboardCheck />결과 입력</MenuItem>}
       </>
     )
-  }
-
-  async function confirmAllow() {
-    if (!allow) return
-    setAllowBusy(true)
-    try {
-      patchStatus(await api.allow(allow.device_id))
-      setAllow(null)
-    } finally {
-      setAllowBusy(false)
-    }
   }
 
   if (session && (session.state === "setup" || session.state === "baseline")) {
@@ -130,23 +116,31 @@ export function Monitor() {
       {/* AI 감지 패널 */}
       <aside className="expanded:order-2">
         <section className="overflow-hidden rounded-lg border border-line bg-surface">
-          <header className="flex min-h-12 items-center gap-2 border-b border-line px-4">
-            <h2 className="text-[15px] font-semibold">AI 감지</h2>
-            {open.length > 0 && <span className="num grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-xs font-bold text-white">{open.length}</span>}
+          <header className="flex min-h-14 items-center gap-2 border-b border-line px-4 py-2">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-fs15 leading-tight font-semibold">
+                AI 신호 감지
+                {open.length > 0 && <span className="num grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-xs font-bold text-white">{open.length}</span>}
+              </h2>
+              <p className="truncate text-fs12 text-fg-3">무선 신호로 찾은 숨은 기기</p>
+            </div>
             <AgentPulse devices={devices} clock={clock} last={events.at(-1)?.clock ?? null} />
           </header>
 
+          {/* 장애 중에는 '이상 없음'을 띄우지 않음 */}
+          {health && health.mode !== "normal" && health.mode !== "degraded" && <div className="p-3 pb-0"><HealthCard health={health} /></div>}
           {open.length === 0 ? (
-            <div className="p-3"><StatusCard watching={watching > 0} /></div>
+            (!health || health.mode === "normal" || health.mode === "degraded") && <div className="p-3"><StatusCard watching={watching > 0} /></div>
           ) : (
-            <div className="divide-y divide-line">
+            <div className="mt-3 divide-y divide-line border-t border-line first:mt-0 first:border-t-0">
               {open.map((r) => <RequestCard key={r.id} req={r} startLabel={start} flush />)}
             </div>
           )}
+          {open.length === 0 && health && health.mode !== "normal" && health.mode !== "degraded" && <div className="h-3" />}
 
           {closed.length > 0 && (
             <div className="border-t border-line">
-              <h3 className="bg-subtle px-4 py-2 text-[13px] font-semibold text-fg-3">처리한 요청 {closed.length}</h3>
+              <h3 className="bg-subtle px-4 py-2 text-fs13 font-semibold text-fg-3">처리한 요청 {closed.length}</h3>
               <div className="divide-y divide-line">
                 {closed.slice(0, 3).map((r) => <RequestCard key={r.id} req={r} startLabel={start} flush />)}
               </div>
@@ -159,8 +153,8 @@ export function Monitor() {
       <section aria-label="감독실" className="room overflow-hidden rounded-lg expanded:order-1">
         <header className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-4 medium:px-5">
           <div className="min-w-0">
-            <h2 className="text-[17px] font-bold">좌석 배치 · {(session?.rows ?? 4) * (session?.cols ?? 10)}석</h2>
-            <div className="num mt-0.5 text-[13px] text-fg-3">{start} ~ {clockOf(duration * 60, start)} · {duration}분</div>
+            <h2 className="text-fs17 font-bold">좌석 배치 · {(session?.rows ?? 4) * (session?.cols ?? 10)}석</h2>
+            <div className="num mt-0.5 text-fs13 text-fg-3">{start} ~ {clockOf(duration * 60, start)} · {duration}분</div>
           </div>
           {open.length > 0 && (
             <Button asChild size="sm" className="ml-auto bg-brand-soft text-brand hover:bg-brand-soft/70">
@@ -176,7 +170,9 @@ export function Monitor() {
               title: "장비",
               cells: [
                 { label: "수신기", value: `${online}/${total}`, tone: online === total ? "ok" : "danger" },
-                { label: "기준 비콘", value: status?.beacon_ok ? "정상" : "끊김", tone: status?.beacon_ok ? "ok" : "danger" },
+                health?.beacon === "frozen"
+                  ? { label: "기준 비콘", value: "보정 정지", tone: "warn" }
+                  : { label: "기준 비콘", value: status?.beacon_ok ? "정상" : "끊김", tone: status?.beacon_ok ? "ok" : "danger" },
               ],
             },
             {
@@ -207,10 +203,6 @@ export function Monitor() {
       </section>
 
       {sheet != null && requestsMap[sheet] && <EvidenceSheet req={requestsMap[sheet]} open onOpenChange={(o) => !o && setSheet(null)} />}
-      <Confirm open={allow != null} onOpenChange={(o) => !o && setAllow(null)} title="허용 목록에 추가할까요?" action="허용 목록에 추가" onConfirm={confirmAllow} busy={allowBusy}>
-        <p className="font-semibold text-fg">{allow?.what}</p>
-        <p className="mt-1">감독관 본인 폰이나 시험장 장비처럼 문제없는 기기일 때만 추가하세요. 추가하면 이번 시험 동안 이 기기는 더 확인하지 않습니다.</p>
-      </Confirm>
     </div>
   )
 }
@@ -229,7 +221,7 @@ function Counters({ groups, compact = false }: { groups: { title: string; cells:
     <div className="flex flex-wrap gap-x-4 gap-y-3 px-4 pt-3 pb-4 medium:px-5">
       {groups.map((g) => (
         <div key={g.title}>
-          <div className="mb-1 text-[11px] font-semibold text-fg-3">{g.title}</div>
+          <div className="mb-1 text-fs11 font-semibold text-fg-3">{g.title}</div>
           <div className="flex gap-1">
             {g.cells.map((c) => <CounterCell key={c.label} c={c} />)}
           </div>
@@ -239,15 +231,20 @@ function Counters({ groups, compact = false }: { groups: { title: string; cells:
   )
 }
 
+/** 값이 바뀌면 숫자가 아래에서 올라오고, 주의 · 경고 칸은 배경이 진하게 반짝였다 돌아옴 (화면에 들어올 때는 재생 안 함) */
 function CounterCell({ c, compact = false }: { c: Cell; compact?: boolean }) {
+  const changed = useChangeCount(c.value)
   return (
-    <div className={cn("rounded-md text-center", compact ? "px-1 py-1.5" : "min-w-[78px] px-3 py-2 medium:min-w-[88px]",
+    <div className={cn("relative overflow-hidden rounded-md text-center", compact ? "px-1 py-1.5" : "min-w-[78px] px-3 py-2 medium:min-w-[88px]",
       c.tone === "danger" ? "bg-danger-soft" : c.tone === "warn" ? "bg-warn-soft" : "bg-surface")}>
-      <div className="flex items-center justify-center gap-1 text-xs whitespace-nowrap text-fg-2">
+      {changed > 0 && (c.tone === "danger" || c.tone === "warn") && (
+        <span key={changed} aria-hidden className={cn("pointer-events-none absolute inset-0 animate-flash", c.tone === "danger" ? "bg-danger/25" : "bg-warn-fill/30")} />
+      )}
+      <div className="relative flex items-center justify-center gap-1 text-xs whitespace-nowrap text-fg-2">
         {c.tone && <Shape tone={c.tone} className="size-2.5" />}
         {c.label}
       </div>
-      <div className={cn("num leading-tight font-bold", compact ? "text-[17px]" : "mt-0.5 text-[20px]",
+      <div key={changed} className={cn("num relative leading-tight font-bold", compact ? "text-fs17" : "mt-0.5 text-fs20", changed > 0 && "animate-tick",
         c.tone === "danger" ? "text-danger" : c.tone === "warn" ? "text-warn" : "text-fg")}>
         {c.value}
       </div>
@@ -262,8 +259,27 @@ function StatusCard({ watching }: { watching: boolean }) {
     <div aria-live="polite" className={cn("flex items-center gap-3 rounded-md px-4 py-5 text-white", watching ? "bg-warn-fill" : "bg-ok")}>
       <Icon className="size-9 shrink-0" strokeWidth={2.2} />
       <div>
-        <div className="text-[24px] leading-tight font-bold">{watching ? "관찰 중" : "이상 없음"}</div>
-        <div className="text-[14px] opacity-95">{watching ? "할 일 없음 · 자동으로 더 확인하는 중" : "AI 감지 없음"}</div>
+        <div className="text-fs24 leading-tight font-bold">{watching ? "관찰 중" : "이상 없음"}</div>
+        <div className="text-fs14 opacity-95">{watching ? "할 일 없음 · 자동으로 더 확인하는 중" : "숨은 기기 신호 없음"}</div>
+      </div>
+    </div>
+  )
+}
+
+/** 자동 탐지가 멈추거나 줄었을 때 '이상 없음' 대신 보이는 카드 (v11 10장 · 해킹 · 장애 ≠ 이상 없음) */
+function HealthCard({ health }: { health: Health }) {
+  const c = {
+    manual: { Icon: WifiOff, bg: "bg-danger", title: "감시 중단", sub: "시험장 망 끊김 · 순회와 금속탐지기로 직접 감독하세요" },
+    recovering: { Icon: RefreshCw, bg: "bg-warn-fill", title: "복구 중", sub: "현장 서버 재시작 · 저장된 상태로 곧 이어서 판단" },
+    no_location: { Icon: MapPinOff, bg: "bg-danger", title: "위치 추정 중지", sub: `수신기 ${health.nodes_ok}/4 · 숨은 기기가 있는지만 판단 · 휴대형으로 교실 전체 순회` },
+  }[health.mode as "manual" | "recovering" | "no_location"]
+  if (!c) return null
+  return (
+    <div role="alert" className={cn("flex items-center gap-3 rounded-md px-4 py-5 text-white", c.bg)}>
+      <c.Icon className={cn("size-9 shrink-0", health.mode === "recovering" && "animate-spin [animation-duration:2.5s]")} strokeWidth={2.2} />
+      <div>
+        <div className="text-fs24 leading-tight font-bold">{c.title}</div>
+        <div className="text-fs14 opacity-95">{c.sub}</div>
       </div>
     </div>
   )
@@ -275,7 +291,7 @@ function AgentPulse({ devices, clock, last }: { devices: TrackedDevice[]; clock:
   const n = devices.length
   return (
     <Link to="/admin" title={n > 0 ? `신호 ${n}개 확인 중` : "새 신호 없음"}
-      className="ml-auto flex items-center gap-2 rounded-md px-2 py-1 text-[13px] text-fg-3 hover:bg-subtle">
+      className="ml-auto flex items-center gap-2 rounded-md px-2 py-1 text-fs13 text-fg-3 hover:bg-subtle">
       <Pulse on={live} />
       <span className="font-semibold text-fg-2">{live ? "작동 중" : clock?.paused ? "일시 정지" : "대기"}</span>
       {last && <span className="num hidden medium:inline">{last.slice(0, 5)}</span>}

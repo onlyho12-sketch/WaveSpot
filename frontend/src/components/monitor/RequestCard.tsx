@@ -1,14 +1,18 @@
-// 수색 요청 카드 ('AI 감지' 패널: 점수 원형 배지 + 제목 + 근거 2줄 + 버튼 2개 = v10 두 번 터치 원칙)
+// 수색 요청 카드 ('AI 신호 감지' 패널: 점수 원형 배지 + 제목 + 근거 2줄 + 버튼 2개 = v10 두 번 터치 원칙)
 // 근거 서랍 (Kismet 상세 서랍 · Atlassian 진행 단계). 감독관에게 필요한 것만: 근거 몇 줄 · 틀릴 수 있는 이유 · 볼 곳 · 할 일
+// · 대응 단계 흐름(v11 그림 22, 이 요청의 지금 위치 강조)
 // 점수는 카드 배지 하나만 (레퍼런스 v10 27번). 확률 · 모델 출처 · 조사 로그는 기록 · 관리 화면에만
+// 모델 오류 · 장비 이상으로 규칙 점수를 썼으면 카드에 '규칙 점수' 꼬리표 (v11 10장)
 import { useNavigate } from "@tanstack/react-router"
 import { ChevronDown, Footprints, ScanSearch } from "lucide-react"
 import { type ReactNode, useState } from "react"
+import { LadderFlow } from "@/components/monitor/LadderFlow"
 import { Button } from "@/components/ui/button"
 import { Sheet } from "@/components/ui/sheet"
 import { Tag, Tracker } from "@/components/ui/status"
 import { api, type Evidence, type SearchRequest } from "@/lib/api"
 import { patchRequest, useLive } from "@/lib/live"
+import { useChangeCount, useCountUp, useFreshRequest } from "@/lib/motion"
 import { clockOf, cn, deviceSeen, DONE_LABEL, isOpen } from "@/lib/utils"
 
 const TITLE: Record<number, string> = { 2: "휴대형 접근 요청", 3: "정밀 수색 요청", 4: "2차 수색 요청" }
@@ -17,7 +21,7 @@ export const target = (r: SearchRequest) => (r.suspect_seat && r.level >= 3 ? `$
 export const targetSub = (r: SearchRequest) =>
   r.suspect_seat && r.level >= 3 ? r.kind + " 추정" : `${r.seats[0]}~${r.seats.at(-1)}번${r.zone2 ? ` · 2순위 ${r.zone2}구역` : ""}`
 
-/** 사다리 단계 이름 (휴대폰은 짧게) */
+/** 대응 단계 이름 (휴대폰은 짧게) */
 export const LADDER = [
   { key: 1, short: "관찰", full: "추가 관찰" },
   { key: 2, short: "접근", full: "휴대형 접근" },
@@ -51,16 +55,26 @@ export function useGo(req: SearchRequest, after?: () => void) {
   return { act, go, busy }
 }
 
-/** 위험 점수 원형 배지. v10 판단 규칙: 40~69 주황(추가 조사) · 70 이상 빨강(수색 요청) */
+/**
+ * 위험 점수 원형 배지. v10 판단 규칙: 40~69 주황(추가 조사) · 70 이상 빨강(수색 요청)
+ * 점수가 오르면 숫자가 올라가며 바뀌고, 70점을 넘는 순간 배지가 한 번 커짐 (처음 그릴 때는 바로 표시)
+ */
 export function ScoreBadge({ score, size = "md" }: { score: number; size?: "sm" | "md" }) {
-  const tone = score >= 70 ? "border-danger bg-danger-soft text-danger" : score >= 40 ? "border-warn-fill bg-warn-soft text-warn" : "border-line-strong bg-subtle text-fg-2"
+  const shown = useCountUp(score)
+  const high = shown >= 70
+  const crossed = useChangeCount(high)
+  const tone = high ? "border-danger bg-danger-soft text-danger" : shown >= 40 ? "border-warn-fill bg-warn-soft text-warn" : "border-line-strong bg-subtle text-fg-2"
   return (
-    <span title={`위험 점수 ${score}점`} aria-label={`위험 점수 ${score}점`}
-      className={cn("num grid shrink-0 place-items-center rounded-full border-2 font-bold", size === "md" ? "size-11 text-[17px]" : "size-8 text-[13px]", tone)}>
-      {score}
+    <span key={crossed} title={`위험 점수 ${score}점`} aria-label={`위험 점수 ${score}점`}
+      className={cn("num grid shrink-0 place-items-center rounded-full border-2 font-bold transition-colors", size === "md" ? "size-11 text-fs17" : "size-8 text-fs13", tone,
+        crossed > 0 && high && "animate-score-pop")}>
+      {shown}
     </span>
   )
 }
+
+/** AI 모델 대신 규칙으로 판단한 근거가 있나 (모델 오류 · 수신기 2대 이상 끊김) */
+export const usesRule = (req: SearchRequest) => req.evidence.some((e) => e.source.startsWith("규칙 점수"))
 
 /** 카드에 보일 근거 2줄: 점수 기여가 큰 순서 */
 const topReasons = (req: SearchRequest, n = 2) =>
@@ -78,6 +92,7 @@ export function RequestCard({ req, startLabel = "09:00", flush = false }: { req:
   const since = deviceSeen(events, req.device_id).first?.slice(0, 5)
   const { act, go, busy } = useGo(req)
   const tone = req.level >= 3 ? "danger" : "warn"
+  const fresh = useFreshRequest(req.id, req.level)
 
   if (!isOpen(req)) {
     return (
@@ -95,20 +110,28 @@ export function RequestCard({ req, startLabel = "09:00", flush = false }: { req:
 
   const zoneCase = !(req.suspect_seat && req.level >= 3)
   return (
-    <article className={cn("px-4 py-4", flush ? (tone === "danger" ? "bg-danger-soft/40" : "") : cn("rounded-lg border-2 bg-surface", tone === "danger" ? "border-danger/60" : "border-warn-fill/60"))}>
+    <article className={cn("relative px-4 py-4", fresh.enter && "animate-card-in",
+      flush ? (tone === "danger" ? "bg-danger-soft/40" : "") : cn("rounded-lg border-2 bg-surface", tone === "danger" ? "border-danger/60" : "border-warn-fill/60"))}>
+      {/* 새 요청 · 단계가 올라간 요청: 테두리가 두 번 깜빡이고 멈춤 (단계마다 key가 달라 다시 재생) */}
+      {fresh.flash && (
+        <span key={fresh.flash} aria-hidden
+          className={cn("pointer-events-none absolute inset-0 animate-card-flash", tone === "danger" ? "text-danger" : "text-warn-fill",
+            !flush && "rounded-[inherit]", fresh.enter && "[animation-delay:280ms]")} />
+      )}
       <div className="flex gap-3">
         <ScoreBadge score={req.score} />
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5 text-[13px] font-semibold">
+          <div className="flex items-center gap-1.5 text-fs13 font-semibold">
             <span className={tone === "danger" ? "text-danger" : "text-warn"}>{requestTitle(req)}</span>
             {since && <span className="num font-medium text-fg-3">· {since}부터</span>}
-            {req.state === "searching" && <Tag tone="brand" className="ml-auto">순회 중</Tag>}
+            {usesRule(req) && <Tag tone="warn" className="ml-auto" >규칙 점수</Tag>}
+            {req.state === "searching" && <Tag tone="brand" className={usesRule(req) ? "" : "ml-auto"}>순회 중</Tag>}
           </div>
-          <div className="mt-0.5 text-[19px] leading-snug font-bold">{target(req)} · {req.kind} 추정</div>
-          {zoneCase && <div className="num text-[13px] text-fg-3">{targetSub(req)}</div>}
+          <div className="mt-0.5 text-fs19 leading-snug font-bold">{target(req)} · {req.kind} 추정</div>
+          {zoneCase && <div className="num text-fs13 text-fg-3">{targetSub(req)}</div>}
           <ul className="mt-2 space-y-1">
             {topReasons(req).map((e) => (
-              <li key={e.label} className="grid grid-cols-[4.5rem_1fr] gap-2 text-[14px] leading-snug">
+              <li key={e.label} className="grid grid-cols-[4.5rem_1fr] gap-2 text-fs14 leading-snug">
                 <span className="font-semibold text-fg-2">{e.label}</span>
                 <span className="min-w-0 truncate text-fg-2">{plain(e.value)}</span>
               </li>
@@ -161,13 +184,19 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
         ) : undefined
       }
     >
+      {usesRule(req) && (
+        <p className="border-b border-line bg-warn-soft px-5 py-2.5 text-fs14 text-warn">
+          <b>규칙 점수</b> · 장비나 AI 모델에 이상이 있어 이 판단은 AI 대신 규칙으로 계산했습니다. 위치가 덜 정확할 수 있습니다.
+        </p>
+      )}
+
       <Section title="근거">
         <SourceTabs req={req} facts={facts} />
       </Section>
 
       {req.counter?.length > 0 && (
         <Section title="틀릴 수 있는 이유">
-          <ul className="space-y-1.5 text-[15px] text-fg-2">
+          <ul className="space-y-1.5 text-fs15 text-fg-2">
             {req.counter.map((c) => (
               <li key={c} className="flex gap-2"><span className="mt-[9px] size-1.5 shrink-0 rounded-full bg-fg-3" />{c.replace(/\s*\([^)]*\)/g, "")}</li>
             ))}
@@ -181,6 +210,10 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
 
       <Section title="수색 후 할 일">
         <Steps items={["위 부위를 금속탐지기로 확인", "결과 입력", "발견한 기기는 차폐 파우치에 보관"]} />
+      </Section>
+
+      <Section title="대응 단계" defaultOpen={false}>
+        <LadderFlow req={req} />
       </Section>
     </Sheet>
   )
@@ -202,7 +235,7 @@ function SourceTabs({ req, facts }: { req: SearchRequest; facts: Evidence[] }) {
   const rows = (list: Evidence[]) => (
     <ul className="divide-y divide-line">
       {list.map((e) => (
-        <li key={e.label} className="grid grid-cols-[5.5rem_1fr] gap-3 py-2.5 text-[15px]">
+        <li key={e.label} className="grid grid-cols-[5.5rem_1fr] gap-3 py-2.5 text-fs15">
           <span className="font-semibold">{e.label}</span>
           <span className="text-fg-2">{plain(e.value)}</span>
         </li>
@@ -215,7 +248,7 @@ function SourceTabs({ req, facts }: { req: SearchRequest; facts: Evidence[] }) {
       <div role="tablist" className="mb-2 grid grid-cols-3 rounded-md border border-line-strong p-0.5">
         {tabs.map((t) => (
           <button key={t.key} type="button" role="tab" aria-selected={tab === t.key} onClick={() => setTab(t.key)}
-            className={cn("h-9 rounded-[5px] text-[13px] font-semibold", tab === t.key ? "bg-fg text-surface" : "text-fg-2 hover:bg-fg/5", t.n === 0 && tab !== t.key && "text-fg-3")}>
+            className={cn("h-9 rounded-[5px] text-fs13 font-semibold", tab === t.key ? "bg-fg text-surface" : "text-fg-2 hover:bg-fg/5", t.n === 0 && tab !== t.key && "text-fg-3")}>
             {t.label}{t.n > 0 && t.key !== "hand" ? <span className="num ml-1 opacity-70">{t.n}</span> : null}
           </button>
         ))}
@@ -224,9 +257,9 @@ function SourceTabs({ req, facts }: { req: SearchRequest; facts: Evidence[] }) {
       {tab === "wifi" && (wifi.length ? rows(wifi) : <p className="py-4 text-center text-sm text-fg-3">Wi-Fi 신호 없음 · 블루투스만 잡힘</p>)}
       {tab === "hand" && (walk.length ? (
         <ul className="space-y-1.5 py-1">
-          <li className="pb-1 text-[13px] text-fg-3">순회하며 강하게 들린 좌석 순서</li>
+          <li className="pb-1 text-fs13 text-fg-3">순회 중 신호가 강했던 좌석 순서</li>
           {walk.slice(0, 5).map((w, i) => (
-            <li key={w.seat} className="grid grid-cols-[3.5rem_1fr] items-center gap-3 text-[15px]">
+            <li key={w.seat} className="grid grid-cols-[3.5rem_1fr] items-center gap-3 text-fs15">
               <span className={cn("num font-semibold", i === 0 && "text-danger")}>{w.seat}번</span>
               <span className="h-2 overflow-hidden rounded-sm bg-subtle"><span className={cn("block h-full", i === 0 ? "bg-danger" : "bg-fg-3/50")} style={{ width: `${hi > lo ? Math.max(4, ((w.v - lo) / (hi - lo)) * 100) : 100}%` }} /></span>
             </li>
@@ -240,14 +273,14 @@ function SourceTabs({ req, facts }: { req: SearchRequest; facts: Evidence[] }) {
 export function PartChips({ parts }: { parts: string[] }) {
   return (
     <div className="flex flex-wrap gap-2">
-      {parts.map((p) => <span key={p} className="rounded border border-line-strong px-2.5 py-1 text-[15px]">{p}</span>)}
+      {parts.map((p) => <span key={p} className="rounded border border-line-strong px-2.5 py-1 text-fs15">{p}</span>)}
     </div>
   )
 }
 
 export function Steps({ items }: { items: string[] }) {
   return (
-    <ol className="space-y-2 text-[15px]">
+    <ol className="space-y-2 text-fs15">
       {items.map((t, i) => (
         <li key={t} className="flex items-center gap-3">
           <span className="num grid size-6 shrink-0 place-items-center rounded-full border border-line-strong text-xs font-semibold">{i + 1}</span>{t}
@@ -257,12 +290,12 @@ export function Steps({ items }: { items: string[] }) {
   )
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, children, defaultOpen = true }: { title: string; children: ReactNode; defaultOpen?: boolean }) {
   return (
-    <details open className="group border-b border-line">
+    <details open={defaultOpen} className="group border-b border-line">
       <summary className="flex h-12 items-center gap-2 px-5 hover:bg-subtle">
         <ChevronDown className="size-4 -rotate-90 text-fg-3 transition-transform group-open:rotate-0" />
-        <span className="text-[15px] font-semibold">{title}</span>
+        <span className="text-fs15 font-semibold">{title}</span>
       </summary>
       <div className="px-5 pt-1 pb-5">{children}</div>
     </details>

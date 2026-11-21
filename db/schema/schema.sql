@@ -1,6 +1,19 @@
 -- WaveSpot DB 스키마 (SQLite) · backend/app/models.py 에서 자동 생성, 직접 고치지 말 것
 -- 다시 만들기: backend 폴더에서  .venv/Scripts/python -m app.core.dump_schema
 
+CREATE TABLE accesslog (
+	id INTEGER NOT NULL, 
+	session_id INTEGER, 
+	at DATETIME NOT NULL, 
+	role VARCHAR NOT NULL, 
+	method VARCHAR NOT NULL, 
+	path VARCHAR NOT NULL, 
+	action VARCHAR NOT NULL, 
+	status INTEGER NOT NULL, 
+	allowed BOOLEAN NOT NULL, 
+	PRIMARY KEY (id)
+);
+
 CREATE TABLE agentevent (
 	id INTEGER NOT NULL, 
 	session_id INTEGER NOT NULL, 
@@ -22,6 +35,33 @@ CREATE TABLE alloweddevice (
 	PRIMARY KEY (id)
 );
 
+CREATE TABLE attackrun (
+	id INTEGER NOT NULL, 
+	session_id INTEGER NOT NULL, 
+	kind VARCHAR NOT NULL, 
+	title VARCHAR NOT NULL, 
+	injected BOOLEAN NOT NULL, 
+	started FLOAT NOT NULL, 
+	detected_at FLOAT, 
+	detail VARCHAR, 
+	device_id VARCHAR, 
+	PRIMARY KEY (id)
+);
+
+CREATE TABLE chainentry (
+	id INTEGER NOT NULL, 
+	session_id INTEGER NOT NULL, 
+	seq INTEGER NOT NULL, 
+	kind VARCHAR NOT NULL, 
+	ref_id INTEGER NOT NULL, 
+	body JSON, 
+	body_hash VARCHAR NOT NULL, 
+	prev_hash VARCHAR NOT NULL, 
+	hash VARCHAR NOT NULL, 
+	created_at DATETIME NOT NULL, 
+	PRIMARY KEY (id)
+);
+
 CREATE TABLE examsession (
 	id INTEGER NOT NULL, 
 	name VARCHAR NOT NULL, 
@@ -32,6 +72,21 @@ CREATE TABLE examsession (
 	exam_start_label VARCHAR NOT NULL, 
 	duration_min INTEGER NOT NULL, 
 	created_at DATETIME NOT NULL, 
+	PRIMARY KEY (id)
+);
+
+CREATE TABLE faultrecord (
+	id INTEGER NOT NULL, 
+	session_id INTEGER NOT NULL, 
+	kind VARCHAR NOT NULL, 
+	title VARCHAR NOT NULL, 
+	action VARCHAR NOT NULL, 
+	started FLOAT NOT NULL, 
+	ended FLOAT, 
+	target_sec FLOAT, 
+	missed INTEGER NOT NULL, 
+	recover_sec FLOAT, 
+	injected BOOLEAN NOT NULL, 
 	PRIMARY KEY (id)
 );
 

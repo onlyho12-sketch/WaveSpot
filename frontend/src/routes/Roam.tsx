@@ -11,7 +11,7 @@ import { SeatMap, type SeatState, type ZoneMark } from "@/components/monitor/Sea
 import { Button } from "@/components/ui/button"
 import { Panel, Shape } from "@/components/ui/status"
 import { api, type HandheldStep, type SearchRequest } from "@/lib/api"
-import { patchRequest, useLive } from "@/lib/live"
+import { patchRequest, sendResult, useLive } from "@/lib/live"
 import { useIsPhone } from "@/lib/useIsPhone"
 import { clockOf, cn, DONE_LABEL, isOpen, zoneOfSeat } from "@/lib/utils"
 
@@ -81,8 +81,8 @@ export function Roam() {
     <section className="flex items-center gap-2 rounded-lg border border-line bg-surface px-2 py-2.5 medium:px-3">
       <Link to="/" className="grid size-10 place-items-center rounded-md text-fg-2 hover:bg-fg/5" aria-label="감독 화면으로"><ArrowLeft className="size-5" /></Link>
       <div className="min-w-0">
-        <div className={cn("text-[13px] font-semibold", req.level >= 3 ? "text-danger" : "text-warn")}>{isOpen(req) ? requestTitle(req) : DONE_LABEL[req.state]}</div>
-        <h1 className="truncate text-lg leading-tight font-bold">{target(req)} <span className="text-[15px] font-normal text-fg-2">{targetSub(req)}</span></h1>
+        <div className={cn("text-fs13 font-semibold", req.level >= 3 ? "text-danger" : "text-warn")}>{isOpen(req) ? requestTitle(req) : DONE_LABEL[req.state]}</div>
+        <h1 className="truncate text-lg leading-tight font-bold">{target(req)} <span className="text-fs15 font-normal text-fg-2">{targetSub(req)}</span></h1>
       </div>
     </section>
   )
@@ -167,7 +167,7 @@ function PreWalk({ req, rows, cols }: { req: SearchRequest; rows: number; cols: 
         <SeatMap rows={rows} cols={cols} zones={walks ? marks : zonesOf(req)} compact legend={!walks} onSelect={walks ? (seat) => toggle(zoneOfSeat(seat)) : undefined} />
         {walks && (
           <>
-            <p className="mt-2 text-[13px] text-fg-3">좌석을 누르면 그 구역을 경로에 넣거나 뺍니다.</p>
+            <p className="mt-2 text-fs13 text-fg-3">좌석을 누르면 그 구역을 경로에 넣거나 뺍니다.</p>
             <ol className="mt-3 divide-y divide-line rounded-md border border-line">
               {route.length === 0 && <li className="px-3 py-4 text-center text-sm text-fg-3">돌 구역을 하나 이상 고르세요.</li>}
               {route.map((z, i) => (
@@ -186,7 +186,7 @@ function PreWalk({ req, rows, cols }: { req: SearchRequest; rows: number; cols: 
               ))}
             </ol>
             <div className="mt-4">
-              <div className="mb-1.5 text-[13px] font-semibold text-fg-2">좌석마다 머무는 시간</div>
+              <div className="mb-1.5 text-fs13 font-semibold text-fg-2">좌석마다 머무는 시간</div>
               <div role="radiogroup" className="grid grid-cols-4 rounded-md border border-line-strong p-0.5">
                 {DWELLS.map((d) => (
                   <button key={d} type="button" role="radio" aria-checked={dwell === d} onClick={() => setDwell(d)}
@@ -249,32 +249,37 @@ function Precision({ step, fullscreen }: { step: HandheldStep; fullscreen: boole
     <section aria-live="polite"
       className={cn("flex flex-col text-white transition-colors duration-300", lv.bg,
         fullscreen ? "fixed inset-0 z-50 px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]" : "min-h-[520px] rounded-lg p-6")}>
-      <div className="text-[13px] font-semibold tracking-wide opacity-70">
+      <div className="text-fs13 font-semibold tracking-wide opacity-70">
         순회 중{step.zones && step.zones.length > 1 ? ` · ${step.zones.length}곳 중 ${(step.zone_index ?? 0) + 1}번째` : ""} · {step.pass}회차
       </div>
       <div className="mt-0.5 flex items-baseline gap-3">
-        <span className="text-[22px] font-bold">지금 {step.zone}구역</span>
-        {next != null && <span className="text-[15px] font-semibold opacity-75">다음 {next}구역</span>}
+        <span className="text-fs22 font-bold">지금 {step.zone}구역</span>
+        {next != null && <span className="text-fs15 font-semibold opacity-75">다음 {next}구역</span>}
       </div>
 
       <div className="grid flex-1 place-items-center py-4">
         <div className="relative size-[min(68vw,240px)]">
-          <svg viewBox="0 0 200 200" className="size-full -rotate-90">
+          {/* 진동과 같은 박자로 바깥에 고리가 퍼짐 (진동을 꺼도 화면으로 알 수 있게). 0.3초 진동은 화면에선 너무 빨라 0.6초 */}
+          {lv.every > 0 && (
+            <span key={step.level} aria-hidden className="absolute inset-0 animate-roam-rip rounded-full border-[3px] border-white/75 opacity-0"
+              style={{ animationDuration: `${Math.max(lv.every, 600)}ms` }} />
+          )}
+          <svg viewBox="0 0 200 200" className="relative size-full -rotate-90">
             <circle cx="100" cy="100" r={R} fill="none" stroke="currentColor" strokeOpacity="0.22" strokeWidth="12" />
             <circle cx="100" cy="100" r={R} fill="none" stroke="currentColor" strokeWidth="12" strokeLinecap="round"
               strokeDasharray={C} strokeDashoffset={C * (1 - fill / 100)} className="transition-[stroke-dashoffset] duration-300" />
           </svg>
           <div className="absolute inset-0 grid place-items-center text-center">
             <div>
-              <div className="num text-[34px] leading-none font-bold">{step.rel_db === 0 ? "최고" : `${step.rel_db.toFixed(0)} dB`}</div>
-              <div className="mt-1.5 text-[13px] opacity-75">이번 순회 최고값 대비</div>
+              <div className="num text-fs34 leading-none font-bold">{step.rel_db === 0 ? "최고" : `${step.rel_db.toFixed(0)} dB`}</div>
+              <div className="mt-1.5 text-fs13 opacity-75">이번 순회 최고값 대비</div>
             </div>
           </div>
         </div>
       </div>
 
-      <div className="text-[44px] leading-none font-bold">{lv.label}</div>
-      <div className="num mt-2 text-[28px] leading-tight font-semibold opacity-70">{step.pos_seat}번 옆</div>
+      <div className="text-fs44 leading-none font-bold">{lv.label}</div>
+      <div className="num mt-2 text-fs28 leading-tight font-semibold opacity-70">{step.pos_seat}번 옆</div>
 
       <div className="mt-6 flex items-center gap-4">
         <RoundButton label="닫기" onClick={() => navigate({ to: "/" })}><X className="size-6" /></RoundButton>
@@ -303,7 +308,9 @@ function Result({ req, head, medians, best, rows, cols, phone, notice }: {
   const [seat, setSeat] = useState<number | null>(null)
   const [more, setMore] = useState(false)
   const [busy, setBusy] = useState(false)
-  const canResult = isOpen(req) && req.level >= 3 // searching(멈춤)도 isOpen
+  const [err, setErr] = useState<string | null>(null)
+  const queued = useLive((s) => s.outbox.some((p) => p.id === req.id))
+  const canResult = isOpen(req) && req.level >= 3 && !queued // searching(멈춤)도 isOpen
   const chosen = seat ?? best
 
   const list = useMemo(() => {
@@ -315,11 +322,14 @@ function Result({ req, head, medians, best, rows, cols, phone, notice }: {
 
   async function submit(found: boolean) {
     setBusy(true)
+    setErr(null)
     try {
-      const r = await api.result(req.id, { found, seat: found ? chosen : null })
-      patchRequest(r)
-      if (!isOpen(r)) navigate({ to: "/" })
-      setSeat(null)
+      // 저장 확인이 없으면 태블릿에 먼저 저장하고 연결되면 자동 전송 (이중 저장)
+      const { queued, req: r } = await sendResult(req.id, { found, seat: found ? chosen : null })
+      if (r && !isOpen(r)) navigate({ to: "/" })
+      if (!queued) setSeat(null)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e))
     } finally {
       setBusy(false)
     }
@@ -339,7 +349,7 @@ function Result({ req, head, medians, best, rows, cols, phone, notice }: {
   }
 
   const ranking = (
-    <Panel title="강하게 들린 순서" aside={isOpen(req) && (
+    <Panel title="신호가 강했던 순서" aside={isOpen(req) && (
       <button type="button" onClick={rewalk} disabled={busy} className="-mr-2 flex h-9 items-center gap-1.5 rounded-md px-2.5 text-sm font-semibold text-brand hover:bg-brand-soft disabled:opacity-40">
         <Footprints className="size-4" />다시 순회
       </button>
@@ -380,11 +390,24 @@ function Result({ req, head, medians, best, rows, cols, phone, notice }: {
     <Panel bodyClass="p-3 medium:p-4">
       <SeatMap rows={rows} cols={cols} zones={zonesOf(req)} seats={seats} compact
         selected={canResult ? chosen : null} onSelect={canResult ? setSeat : undefined} selectable={canResult ? list.map((b) => b.seat) : undefined} />
-      <h3 className="mt-4 mb-2 text-[13px] font-semibold text-fg-3">{req.level === 4 ? "다시 볼 곳" : "금속탐지기로 볼 곳"}</h3>
+      <h3 className="mt-4 mb-2 text-fs13 font-semibold text-fg-3">{req.level === 4 ? "다시 볼 곳" : "금속탐지기로 볼 곳"}</h3>
       <PartChips parts={req.search_parts} />
       {!phone && <div className="mt-4 border-t border-line pt-4">{actions}</div>}
+      {canResult && (
+        <p className="mt-2 text-fs13 leading-snug text-fg-3">
+          {req.level === 4
+            ? "2차에서도 못 찾았는데 신호가 계속되면 '미해결'로 기록되고 시험 후 사람이 검토합니다."
+            : "못 찾았는데 신호가 계속 잡히면 2차 수색(소지품 · 책상 · 다른 부위)을 요청하고, 이 결과는 학습에 쓰지 않습니다."}
+        </p>
+      )}
+      {err && <p role="alert" className="mt-3 text-sm font-semibold text-danger">{err}</p>}
+      {queued && (
+        <p role="status" className="mt-4 rounded-md bg-warn-soft px-3 py-2.5 text-sm font-semibold text-warn">
+          전송 대기 · 서버가 저장을 확인하지 않아 태블릿에 먼저 저장했습니다. 연결되면 자동으로 보냅니다.
+        </p>
+      )}
       {!isOpen(req) && <p className="mt-4 text-sm text-fg-2">입력 완료 · {DONE_LABEL[req.state]}{req.found_seat ? ` (${req.found_seat}번)` : ""}</p>}
-      {isOpen(req) && !canResult && <p className="mt-4 text-sm text-fg-2">정밀 수색 요청이 오면 결과를 입력합니다.</p>}
+      {isOpen(req) && !canResult && !queued && <p className="mt-4 text-sm text-fg-2">정밀 수색 요청이 오면 결과를 입력합니다.</p>}
     </Panel>
   )
 

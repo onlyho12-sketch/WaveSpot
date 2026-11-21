@@ -46,6 +46,32 @@
   --breakpoint-expanded: 840px;
   --breakpoint-large: 1200px;
 
+  /* 글자 크기: 화면 폭에 따라 커짐 (아래 :root 의 --fs-* · 휴대폰 그대로 · 태블릿 세로 +1px · 태블릿 가로 +2px 안팎)
+     text-xs · sm · base … 와 text-fs13 같은 크기 클래스가 모두 이 값을 씀 */
+  --text-xs: var(--fs-12);
+  --text-sm: var(--fs-14);
+  --text-base: var(--fs-16);
+  --text-lg: var(--fs-18);
+  --text-xl: var(--fs-20);
+  --text-2xl: var(--fs-24);
+  --text-fs10: var(--fs-10);
+  --text-fs11: var(--fs-11);
+  --text-fs12: var(--fs-12);
+  --text-fs13: var(--fs-13);
+  --text-fs14: var(--fs-14);
+  --text-fs15: var(--fs-15);
+  --text-fs17: var(--fs-17);
+  --text-fs19: var(--fs-19);
+  --text-fs20: var(--fs-20);
+  --text-fs22: var(--fs-22);
+  --text-fs24: var(--fs-24);
+  --text-fs26: var(--fs-26);
+  --text-fs28: var(--fs-28);
+  --text-fs30: var(--fs-30);
+  --text-fs34: var(--fs-34);
+  --text-fs36: var(--fs-36);
+  --text-fs44: var(--fs-44);
+
   --animate-pop: pop 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
   @keyframes pop {
     from { transform: scale(0.85); opacity: 0.4; }
@@ -56,6 +82,86 @@
     from { transform: translateX(24px); opacity: 0; }
     to { transform: translateX(0); opacity: 1; }
   }
+
+  /* 상태가 바뀌는 순간에만 움직임 (계속 도는 장식 애니메이션은 쓰지 않음)
+     Tailwind v4의 -translate-* · scale-* 는 transform이 아닌 translate · scale 속성이라 아래 transform과 겹치지 않음 */
+  /* 좌석 배치도: 원형 범위 등장 · 수색 범위로 올라감 · 퍼지는 고리(3번만) */
+  --animate-roi-in: roi-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  @keyframes roi-in {
+    from { transform: scale(0.55); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  --animate-roi-bump: roi-bump 380ms ease-out;
+  @keyframes roi-bump {
+    40% { transform: scale(1.08); }
+  }
+  --animate-ripple: ripple 2.4s cubic-bezier(0.2, 0.6, 0.3, 1) 3;
+  @keyframes ripple {
+    from { transform: scale(0.4); opacity: 0.75; }
+    to { transform: scale(1.25); opacity: 0; }
+  }
+  --animate-label-in: label-in 420ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  @keyframes label-in {
+    from { transform: translateY(4px); opacity: 0; }
+  }
+  /* 꺼진 수신기 2번 깜빡임 */
+  --animate-blink: blink 500ms ease-in-out 2;
+  @keyframes blink {
+    50% { opacity: 0.25; }
+  }
+  /* 새 수색 요청 카드: 내려옴 + 테두리 2번 · 단계가 올라가면 테두리만 (테두리는 카드 위 덮개 요소) */
+  --animate-card-in: card-in 280ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  --animate-card-flash: card-flash 900ms ease-out 2;
+  @keyframes card-in {
+    from { transform: translateY(-10px); opacity: 0; }
+  }
+  @keyframes card-flash {
+    0%, 100% { box-shadow: inset 0 0 0 2px transparent; }
+    30% { box-shadow: inset 0 0 0 2px currentColor; } /* 덮개의 글자색 = 카드 톤 */
+  }
+  /* 휴대형 순회 고리 (주기는 진동 간격으로 덮어씀) */
+  --animate-roam-rip: roam-rip 2s ease-out infinite;
+  @keyframes roam-rip {
+    from { transform: scale(1); opacity: 0.7; }
+    to { transform: scale(1.5); opacity: 0; }
+  }
+  /* 위험 점수가 70점을 넘는 순간 */
+  --animate-score-pop: score-pop 360ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  @keyframes score-pop {
+    40% { transform: scale(1.14); }
+  }
+  /* 카운터 값이 바뀐 칸: 덮개가 옅어지며 사라짐 · 숫자가 아래에서 올라옴 */
+  --animate-flash: flash 1.2s ease-out forwards;
+  @keyframes flash {
+    from { opacity: 1; }
+    to { opacity: 0; }
+  }
+  --animate-tick: tick 300ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  @keyframes tick {
+    from { transform: translateY(6px); opacity: 0; }
+  }
+}
+
+/* 글자 크기 단계 · 휴대폰(기본) → 태블릿 세로(840px~) +1px → 태블릿 가로(1200px~) +2px 안팎
+   빈 공간을 줄이려고 넓은 화면일수록 글자를 키움 (여백 · 칸 크기는 그대로) */
+:root {
+  --fs-10: 10px; --fs-11: 11px; --fs-12: 12px; --fs-13: 13px; --fs-14: 14px; --fs-15: 15px; --fs-16: 16px;
+  --fs-17: 17px; --fs-18: 18px; --fs-19: 19px; --fs-20: 20px; --fs-22: 22px; --fs-24: 24px; --fs-26: 26px;
+  --fs-28: 28px; --fs-30: 30px; --fs-34: 34px; --fs-36: 36px; --fs-44: 44px;
+}
+@media (min-width: 840px) {
+  :root {
+    --fs-10: 11px; --fs-11: 12px; --fs-12: 13px; --fs-13: 14px; --fs-14: 15px; --fs-15: 16px; --fs-16: 17px;
+    --fs-17: 18px; --fs-18: 19px; --fs-19: 20px; --fs-20: 21px; --fs-22: 23px; --fs-24: 25px; --fs-26: 27px;
+    --fs-28: 29px; --fs-30: 31px; --fs-34: 35px; --fs-36: 37px; --fs-44: 46px;
+  }
+}
+@media (min-width: 1200px) {
+  :root {
+    --fs-10: 12px; --fs-11: 13px; --fs-12: 14px; --fs-13: 15px; --fs-14: 16px; --fs-15: 17px; --fs-16: 18px;
+    --fs-17: 19px; --fs-18: 20px; --fs-19: 21px; --fs-20: 22px; --fs-22: 25px; --fs-24: 27px; --fs-26: 29px;
+    --fs-28: 31px; --fs-30: 33px; --fs-34: 37px; --fs-36: 39px; --fs-44: 48px;
+  }
 }
 
 @layer base {
@@ -64,8 +170,12 @@
     background: var(--color-bg);
     color: var(--color-fg);
     font-family: var(--font-sans);
-    font-size: 15px;
+    font-size: var(--fs-15);
     font-feature-settings: "tnum" 1;
+    /* 한글은 낱말 중간에서 줄을 바꾸지 않음 ('신호 감 / 지' 방지) · 아주 긴 영문 · 숫자만 끊음 */
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    text-wrap: pretty; /* 마지막 줄에 낱말 하나만 남지 않게 */
     -webkit-tap-highlight-color: transparent;
     -webkit-font-smoothing: antialiased;
   }

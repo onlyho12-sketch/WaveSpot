@@ -1,6 +1,7 @@
 // 시험 준비: 장비 확인 → 입실 전 기준선 → 시험 시작 (실제 순서대로)
 // 장비 점검 표 (측정값 + 양호 / 주의 배지, IBM Carbon 모양 + 색 + 글자), 위에 진행 단계 (Atlassian progress tracker)
 // 시험 시작 전 확인 목록(휴대폰 수거 · 차폐 파우치)을 다 체크해야 감시 시작
+// v11 10장: 자가 점검(수신기 4/4 · 기준 비콘 · 시계 동기화 · 저장 공간 · 펌웨어 서명 · 인증서 · AI 모델)을 통과해야만 '감시 시작'이 켜짐
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
 import { Pause, Play } from "lucide-react"
@@ -26,7 +27,10 @@ export function Setup() {
   const state = status?.session?.state ?? "setup"
   const nodes = status?.nodes ?? []
   const online = nodes.filter((n) => n.status === "online").length
-  const equipOk = online === nodes.length && nodes.length > 0 && !!status?.beacon_ok
+  const checksList = status?.selfcheck ?? []
+  const sysChecks = checksList.filter((c) => c.key !== "nodes" && c.key !== "beacon") // 수신기 · 비콘은 위 표에
+  const selfOk = checksList.length > 0 && checksList.every((c) => c.ok !== false)
+  const equipOk = online === nodes.length && nodes.length > 0 && !!status?.beacon_ok && selfOk
   const current = state === "setup" ? (equipOk ? 1 : 0) : state === "baseline" ? 2 : 3
 
   async function run(key: string, fn: () => Promise<unknown>) {
@@ -46,11 +50,11 @@ export function Setup() {
       <div className="flex flex-col gap-3 medium:gap-4">
         <section className="rounded-lg border border-line bg-surface px-5 py-4">
           <div className="max-w-xl">
-            <Tracker current={Math.min(current, 2)} steps={[{ key: 1, label: "장비 확인" }, { key: 2, label: "기준선" }, { key: 3, label: "시험 시작" }]} />
+            <Tracker current={Math.min(current, 2)} steps={[{ key: 1, label: "자가 점검" }, { key: 2, label: "기준선" }, { key: 3, label: "시험 시작" }]} />
           </div>
         </section>
 
-        <Panel title="1. 장비 확인" aside={<Status tone={equipOk ? "ok" : "danger"}>{equipOk ? "모두 정상" : "확인 필요"}</Status>}>
+        <Panel title="1. 자가 점검" aside={<Status tone={equipOk ? "ok" : "danger"}>{equipOk ? "모두 통과" : "확인 필요"}</Status>}>
           {/* 장비 점검 표 (항목마다 측정값 + 양호 / 주의 배지) */}
           <table className="w-full text-sm">
             <thead className="border-b border-line bg-subtle text-left text-xs text-fg-3">
@@ -59,7 +63,7 @@ export function Setup() {
                 <th className="py-2 font-semibold">장비</th>
                 <th className="hidden px-4 py-2 font-semibold medium:table-cell">위치</th>
                 <th className="px-4 py-2 text-right font-semibold">받은 신호</th>
-                <th className="py-2 pr-4 text-right font-semibold">들리는 기기</th>
+                <th className="py-2 pr-4 text-right font-semibold">잡히는 기기</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -85,6 +89,20 @@ export function Setup() {
             </tbody>
           </table>
           <p className="border-t border-line px-4 py-2 text-xs text-fg-3">최근 10초 기준 · 시험 중에는 1분마다 갱신 · 받은 신호가 0이면 주의</p>
+          {sysChecks.length > 0 && (
+            <ul className="grid divide-line border-t border-line text-sm medium:grid-cols-2 medium:divide-x">
+              {sysChecks.map((c) => (
+                <li key={c.key} className={cn("flex items-center gap-3 border-b border-line px-4 py-2.5", c.ok === false && "bg-danger-soft/50")}>
+                  <Status tone={c.ok === false ? "off" : c.ok ? "ok" : "neutral"}><span className="w-9 font-semibold">{c.ok === false ? "실패" : c.ok ? "통과" : "보고 없음"}</span></Status>
+                  <span className="font-semibold">{c.label}</span>
+                  <span className="num ml-auto text-right text-fg-2">{c.value}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {!selfOk && checksList.length > 0 && (
+            <p className="px-4 py-2 text-fs13 font-semibold text-danger">자가 점검을 모두 통과해야 기준선을 만들고 감시를 시작할 수 있습니다.</p>
+          )}
         </Panel>
 
         <Panel title="2. 기준선">
@@ -104,7 +122,7 @@ export function Setup() {
               <Button onClick={() => run("baseline", async () => patchStatus(await api.baseline()))} disabled={!!busy || !equipOk}>
                 {busy === "baseline" ? "기준선 만드는 중…" : "기준선 만들기"}
               </Button>
-              {!equipOk && <span className="ml-3 text-sm text-fg-3">장비 확인 먼저</span>}
+              {!equipOk && <span className="ml-3 text-sm text-fg-3">자가 점검 먼저</span>}
             </div>
           )}
         </Panel>
@@ -114,7 +132,7 @@ export function Setup() {
             <ul className="divide-y divide-line border-b border-line">
               {CHECKS.map((c) => (
                 <li key={c.key}>
-                  <label className="flex min-h-12 cursor-pointer items-center gap-3 px-4 text-[15px] hover:bg-subtle">
+                  <label className="flex min-h-12 cursor-pointer items-center gap-3 px-4 text-fs15 hover:bg-subtle">
                     <input type="checkbox" className="size-5 accent-brand" checked={!!checks[c.key]}
                       onChange={(e) => setChecks((v) => ({ ...v, [c.key]: e.target.checked }))} />
                     {c.label}
@@ -128,7 +146,7 @@ export function Setup() {
               {state === "running" || state === "ended" ? "시험 전 확인 완료" : allChecked ? "시작할 수 있습니다." : `확인 ${CHECKS.length - doneCount}개 남음`}
             </p>
             {state === "baseline" && (
-              <Button variant="ok" size="lg" disabled={!!busy || !allChecked}
+              <Button variant="ok" size="lg" disabled={!!busy || !allChecked || !selfOk}
                 onClick={() => run("start", async () => { patchStatus(await api.start()); navigate({ to: "/" }) })}>
                 감시 시작
               </Button>
@@ -165,11 +183,11 @@ export function Setup() {
         <Panel title="새 시험" bodyClass="p-4">
           <Field label="시험 이름" htmlFor="exam-name">
             <input id="exam-name" value={name} onChange={(e) => setName(e.target.value)}
-              className="h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-[15px] focus:border-brand focus:outline-none" />
+              className="h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-fs15 focus:border-brand focus:outline-none" />
           </Field>
           {status?.source === "replay" && (
             <fieldset className="mt-4">
-              <legend className="mb-1.5 text-[13px] font-semibold text-fg-2">재생 시나리오</legend>
+              <legend className="mb-1.5 text-fs13 font-semibold text-fg-2">재생 시나리오</legend>
               <div className="divide-y divide-line rounded-md border border-line">
                 {scenarios.data?.map((s) => (
                   <label key={s.id} className="flex cursor-pointer items-start gap-2.5 px-3 py-2.5 text-sm hover:bg-subtle">
@@ -209,7 +227,7 @@ function grade(n: LiveStatus["nodes"][number]): { tone: Tone; label: string } {
 function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
   return (
     <div>
-      <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-semibold text-fg-2">{label}</label>
+      <label htmlFor={htmlFor} className="mb-1.5 block text-fs13 font-semibold text-fg-2">{label}</label>
       {children}
     </div>
   )
