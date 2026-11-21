@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 520 150" width="1040" height="300">
+<g transform="translate(6,0)">
+  <defs>
+    <linearGradient id="pg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563EB"/><stop offset="1" stop-color="#1F3864"/></linearGradient>
+  </defs>
+  <path d="M60 146 C60 146 8 92 8 56 A52 52 0 0 1 112 56 C112 92 60 146 60 146 Z" fill="url(#pg)"/>
+  <circle cx="60" cy="56" r="38" fill="#fff"/>
+  <path d="M42 38 A26 26 0 0 0 42 74" fill="none" stroke="#2563EB" stroke-width="6" stroke-linecap="round"/>
+  <path d="M78 38 A26 26 0 0 1 78 74" fill="none" stroke="#2563EB" stroke-width="6" stroke-linecap="round"/>
+  <path d="M50 46 A13 13 0 0 0 50 66" fill="none" stroke="#1F3864" stroke-width="6" stroke-linecap="round"/>
+  <path d="M70 46 A13 13 0 0 1 70 66" fill="none" stroke="#1F3864" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="60" cy="56" r="7.5" fill="#F43F5E"/>
+</g>
+<text x="140" y="92" font-family="Noto Sans CJK KR, sans-serif" font-weight="900" font-size="70" letter-spacing="-2"><tspan fill="#1F3864">Wave</tspan><tspan fill="#2563EB">Spot</tspan></text>
+<text x="143" y="126" font-family="Noto Sans CJK KR, sans-serif" font-weight="500" font-size="17" fill="#64748B" letter-spacing="0.5">무선 신호 기반 시험 부정행위 탐지 플랫폼</text>
+</svg>

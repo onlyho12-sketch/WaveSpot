@@ -1,0 +1,216 @@
+// 시험 준비: 장비 확인 → 입실 전 기준선 → 시험 시작 (실제 순서대로)
+// 장비 점검 표 (측정값 + 양호 / 주의 배지, IBM Carbon 모양 + 색 + 글자), 위에 진행 단계 (Atlassian progress tracker)
+// 시험 시작 전 확인 목록(휴대폰 수거 · 차폐 파우치)을 다 체크해야 감시 시작
+import { useQuery } from "@tanstack/react-query"
+import { useNavigate } from "@tanstack/react-router"
+import { Pause, Play } from "lucide-react"
+import { type ReactNode, useState } from "react"
+import { Button } from "@/components/ui/button"
+import { Panel, Status, Tracker } from "@/components/ui/status"
+import { api, type Status as LiveStatus } from "@/lib/api"
+import { patchStatus, useLive } from "@/lib/live"
+import { cn, NODE_PLACE, type Tone } from "@/lib/utils"
+
+export function Setup() {
+  const status = useLive((s) => s.status)
+  const clock = useLive((s) => s.clock)
+  const navigate = useNavigate()
+  const scenarios = useQuery({ queryKey: ["scenarios"], queryFn: api.scenarios })
+  const [busy, setBusy] = useState<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [name, setName] = useState("3교시 수학")
+  const [scenario, setScenario] = useState("demo")
+  const [checks, setChecks] = useState<Record<string, boolean>>({})
+  const doneCount = CHECKS.filter((c) => checks[c.key]).length
+  const allChecked = doneCount === CHECKS.length
+  const state = status?.session?.state ?? "setup"
+  const nodes = status?.nodes ?? []
+  const online = nodes.filter((n) => n.status === "online").length
+  const equipOk = online === nodes.length && nodes.length > 0 && !!status?.beacon_ok
+  const current = state === "setup" ? (equipOk ? 1 : 0) : state === "baseline" ? 2 : 3
+
+  async function run(key: string, fn: () => Promise<unknown>) {
+    setBusy(key)
+    setError(null)
+    try {
+      await fn()
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="grid gap-3 medium:gap-4 expanded:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="flex flex-col gap-3 medium:gap-4">
+        <section className="rounded-lg border border-line bg-surface px-5 py-4">
+          <div className="max-w-xl">
+            <Tracker current={Math.min(current, 2)} steps={[{ key: 1, label: "장비 확인" }, { key: 2, label: "기준선" }, { key: 3, label: "시험 시작" }]} />
+          </div>
+        </section>
+
+        <Panel title="1. 장비 확인" aside={<Status tone={equipOk ? "ok" : "danger"}>{equipOk ? "모두 정상" : "확인 필요"}</Status>}>
+          {/* 장비 점검 표 (항목마다 측정값 + 양호 / 주의 배지) */}
+          <table className="w-full text-sm">
+            <thead className="border-b border-line bg-subtle text-left text-xs text-fg-3">
+              <tr>
+                <th className="w-24 px-4 py-2 font-semibold medium:w-28">평가</th>
+                <th className="py-2 font-semibold">장비</th>
+                <th className="hidden px-4 py-2 font-semibold medium:table-cell">위치</th>
+                <th className="px-4 py-2 text-right font-semibold">받은 신호</th>
+                <th className="py-2 pr-4 text-right font-semibold">들리는 기기</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-line">
+              {nodes.map((n) => {
+                const g = grade(n)
+                return (
+                  <tr key={n.node_id} className={cn(g.tone === "warn" && "bg-warn-soft/50", g.tone === "off" && "bg-danger-soft/50")}>
+                    <td className="px-4 py-2.5"><Status tone={g.tone}><span className="font-semibold">{g.label}</span></Status></td>
+                    <td className="py-2.5 font-semibold whitespace-nowrap">수신기 {n.node_id}</td>
+                    <td className="hidden px-4 py-2.5 text-fg-2 medium:table-cell">{NODE_PLACE[n.node_id] ?? "-"}</td>
+                    <td className="num px-4 py-2.5 text-right whitespace-nowrap">{n.status === "online" && n.rate != null ? <>{n.rate.toFixed(1)}<span className="ml-0.5 text-xs text-fg-3">건/초</span></> : <span className="text-fg-3">-</span>}</td>
+                    <td className="num py-2.5 pr-4 text-right whitespace-nowrap">{n.status === "online" && n.heard != null ? <>{n.heard}<span className="ml-0.5 text-xs text-fg-3">대</span></> : <span className="text-fg-3">-</span>}</td>
+                  </tr>
+                )
+              })}
+              <tr className={cn(!status?.beacon_ok && "bg-danger-soft/50")}>
+                <td className="px-4 py-2.5"><Status tone={status?.beacon_ok ? "ok" : "off"}><span className="font-semibold">{status?.beacon_ok ? "양호" : "끊김"}</span></Status></td>
+                <td className="py-2.5 font-semibold whitespace-nowrap">기준 비콘</td>
+                <td className="hidden px-4 py-2.5 text-fg-2 medium:table-cell">교탁</td>
+                <td className="px-4 py-2.5 text-right text-fg-3">-</td>
+                <td className="py-2.5 pr-4 text-right text-fg-3">-</td>
+              </tr>
+            </tbody>
+          </table>
+          <p className="border-t border-line px-4 py-2 text-xs text-fg-3">최근 10초 기준 · 시험 중에는 1분마다 갱신 · 받은 신호가 0이면 주의</p>
+        </Panel>
+
+        <Panel title="2. 기준선">
+          {state === "setup" && <div className="px-4 py-3 text-sm text-fg-2">수험생 입실 전에 만드세요.</div>}
+          {(status?.allowlist.length ?? 0) > 0 && (
+            <ul className="divide-y divide-line text-sm">
+              {status?.allowlist.map((a) => (
+                <li key={a.device_id} className="flex items-center gap-3 px-4 py-2.5">
+                  <Status tone="ok">허용</Status>
+                  <span>{a.label.split(" · ")[0]}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+          {state === "setup" && (
+            <div className="border-t border-line px-4 py-3">
+              <Button onClick={() => run("baseline", async () => patchStatus(await api.baseline()))} disabled={!!busy || !equipOk}>
+                {busy === "baseline" ? "기준선 만드는 중…" : "기준선 만들기"}
+              </Button>
+              {!equipOk && <span className="ml-3 text-sm text-fg-3">장비 확인 먼저</span>}
+            </div>
+          )}
+        </Panel>
+
+        <Panel title="3. 시험 시작">
+          {state !== "running" && state !== "ended" && (
+            <ul className="divide-y divide-line border-b border-line">
+              {CHECKS.map((c) => (
+                <li key={c.key}>
+                  <label className="flex min-h-12 cursor-pointer items-center gap-3 px-4 text-[15px] hover:bg-subtle">
+                    <input type="checkbox" className="size-5 accent-brand" checked={!!checks[c.key]}
+                      onChange={(e) => setChecks((v) => ({ ...v, [c.key]: e.target.checked }))} />
+                    {c.label}
+                  </label>
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex flex-wrap items-center gap-4 px-4 py-3">
+            <p className="min-w-0 flex-1 text-sm text-fg-2">
+              {state === "running" || state === "ended" ? "시험 전 확인 완료" : allChecked ? "시작할 수 있습니다." : `확인 ${CHECKS.length - doneCount}개 남음`}
+            </p>
+            {state === "baseline" && (
+              <Button variant="ok" size="lg" disabled={!!busy || !allChecked}
+                onClick={() => run("start", async () => { patchStatus(await api.start()); navigate({ to: "/" }) })}>
+                감시 시작
+              </Button>
+            )}
+            {(state === "running" || state === "ended") && <Status tone="ok"><span className="text-sm font-semibold">{state === "running" ? "감시 중" : "시험 종료"}</span></Status>}
+          </div>
+        </Panel>
+
+        {error && <div role="alert" className="rounded-lg border border-danger/40 bg-danger-soft px-4 py-3 text-sm text-danger">{error}</div>}
+      </div>
+
+      <aside className="flex flex-col gap-3 medium:gap-4">
+        {status?.source === "replay" && (
+          <Panel title="녹화 재생" bodyClass="p-4">
+            <Field label="재생 속도">
+              <div role="radiogroup" className="grid grid-cols-4 rounded-md border border-line-strong p-0.5">
+                {[1, 10, 30, 60].map((x) => (
+                  <button key={x} type="button" role="radio" aria-checked={clock?.speed === x}
+                    onClick={() => run("speed", async () => patchStatus(await api.control({ action: "resume", speed: x })))}
+                    className={cn("num h-9 rounded-[5px] text-sm font-semibold", clock?.speed === x ? "bg-fg text-white" : "text-fg-2 hover:bg-fg/5")}>
+                    {x}배
+                  </button>
+                ))}
+              </div>
+            </Field>
+            {state === "running" && (
+              <Button variant="secondary" className="mt-3 w-full" onClick={() => run("pause", async () => patchStatus(await api.control({ action: clock?.paused ? "resume" : "pause" })))}>
+                {clock?.paused ? <><Play />재생 계속</> : <><Pause />일시 정지</>}
+              </Button>
+            )}
+          </Panel>
+        )}
+
+        <Panel title="새 시험" bodyClass="p-4">
+          <Field label="시험 이름" htmlFor="exam-name">
+            <input id="exam-name" value={name} onChange={(e) => setName(e.target.value)}
+              className="h-11 w-full rounded-md border border-line-strong bg-surface px-3 text-[15px] focus:border-brand focus:outline-none" />
+          </Field>
+          {status?.source === "replay" && (
+            <fieldset className="mt-4">
+              <legend className="mb-1.5 text-[13px] font-semibold text-fg-2">재생 시나리오</legend>
+              <div className="divide-y divide-line rounded-md border border-line">
+                {scenarios.data?.map((s) => (
+                  <label key={s.id} className="flex cursor-pointer items-start gap-2.5 px-3 py-2.5 text-sm hover:bg-subtle">
+                    <input type="radio" name="scenario" value={s.id} checked={scenario === s.id} onChange={() => setScenario(s.id)} className="mt-0.5 size-4 accent-brand" />
+                    {s.title}
+                  </label>
+                ))}
+              </div>
+            </fieldset>
+          )}
+          <Button variant="secondary" className="mt-4 w-full" disabled={!!busy || !name.trim()}
+            onClick={() => run("new", async () => patchStatus(await api.newSession({ name: name.trim(), scenario })))}>
+            새 시험 만들기
+          </Button>
+          <p className="mt-2 text-xs text-fg-3">진행 중인 시험은 종료됩니다.</p>
+        </Panel>
+      </aside>
+    </div>
+  )
+}
+
+/** 시험 전 확인 (v10 시험 전 절차) · 다 체크해야 감시 시작 */
+const CHECKS = [
+  { key: "collect", label: "휴대폰 · 스마트워치 수거" },
+  { key: "pouch", label: "수거한 기기를 차폐 파우치에 보관" },
+]
+
+/** 수신기 평가: 응답 없음 = 끊김 · 연결됐지만 최근 10초 받은 신호 0 = 주의 · 그 외 양호 */
+function grade(n: LiveStatus["nodes"][number]): { tone: Tone; label: string } {
+  if (n.status !== "online") return { tone: "off", label: "끊김" }
+  if (n.rate == null) return { tone: "neutral", label: "측정 전" }
+  if (n.rate === 0) return { tone: "warn", label: "주의" }
+  return { tone: "ok", label: "양호" }
+}
+
+// 라벨 안에 버튼을 넣으면 라벨 글자를 눌러도 첫 버튼이 눌리므로 div + htmlFor 로 분리
+function Field({ label, htmlFor, children }: { label: string; htmlFor?: string; children: ReactNode }) {
+  return (
+    <div>
+      <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] font-semibold text-fg-2">{label}</label>
+      {children}
+    </div>
+  )
+}

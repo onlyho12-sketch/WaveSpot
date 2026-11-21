@@ -1,0 +1,29 @@
+# 의존성 · 빌드
+node_modules/
+frontend/dist/
+frontend/dist-*/
+backend/.venv/
+__pycache__/
+*.pyc
+
+# 실행 데이터
+db/*.db
+db/*.db-*
+
+# 라이선스 미표기 데이터에서 만든 모델 · 샘플 (로컬 전용, 재배포 금지)
+backend/app/ml/artifacts/
+
+# 환경 · 편집기
+.env
+backend/.env
+.vscode/
+.idea/
+*.log
+
+# 코드만 올림: 디자인 참고 캡처 · 화면 캡처 · 압축 파일 · 문서 파일 · 이전 UI 는 로컬 전용
+docs/UI_레퍼런스/
+docs/화면_캡처_*/
+docs/*.zip
+frontend/_이전UI_*/
+*.docx
+*.pdf

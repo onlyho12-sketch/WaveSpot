@@ -1,0 +1,8 @@
+fastapi[standard]>=0.115
+sqlmodel>=0.0.22
+pydantic-settings>=2.6
+aiomqtt>=2.3
+numpy>=1.26
+pandas>=2.2
+scikit-learn>=1.5
+joblib>=1.4

@@ -1,0 +1,100 @@
+/* 글꼴은 모두 패키지에서 번들 (시험장 내부망 · 외부 CDN 금지) */
+@import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+@import "tailwindcss";
+
+/*
+  디자인 토큰 · 업무용 도구 (참고: Atlassian · IBM Carbon)
+  - 색: 남색 회색 계열 — 글자 #263747 · 보조 #44576C · 선 #D7E2EB · 파랑 #0066FF/#0053F4
+  - 면: 푸른 회색 바탕 위 흰 패널, 1px 선, 모서리 6~8px, 그림자 없음 (서랍만 예외)
+  - 감독실(좌석 배치도)만 어두운 남색 면 = .room (시험장 눈부심 줄임)
+  - 상태는 색만 쓰지 않고 모양 + 색 + 글자 (Carbon status indicator)
+  - ok 이상 없음 · warn 관찰/접근(Lv1~2) · danger 수색 요청(Lv3~4) · brand 현재 단계 · 주 버튼
+  화면 폭: medium 600 · expanded 840 (태블릿 가로 기준) · large 1200
+*/
+@theme {
+  --color-bg: #e9ecf3;
+  --color-surface: #ffffff;
+  --color-subtle: #f5f7fa;
+  --color-line: #d7e2eb;
+  --color-line-strong: #b2c0ce;
+  --color-fg: #263747;
+  --color-fg-2: #44576c;
+  --color-fg-3: #5a6f84;
+
+  --color-brand: #0066ff;
+  --color-brand-hover: #0053f4;
+  --color-brand-soft: #e7f1ff;
+
+  /* 감독실 어두운 면 */
+  --color-room: #262e3f;
+  --color-room-raised: #323b4f;
+
+  --color-ok: #1f7a4d;
+  --color-ok-soft: #e4f4ea;
+  --color-warn: #c25100;
+  --color-warn-fill: #e8770f;
+  --color-warn-soft: #fff1e1;
+  --color-danger: #c4291c;
+  --color-danger-soft: #fdeceb;
+  --color-notice: #2b2f36;
+
+  /* 글꼴은 Pretendard 하나로 통일. 숫자(시각 · dBm · 좌석 번호)는 고정폭 숫자(tnum)로 줄 맞춤 */
+  --font-sans: "Pretendard Variable", Pretendard, system-ui, -apple-system, "Malgun Gothic", sans-serif;
+  --font-mono: "Pretendard Variable", Pretendard, system-ui, -apple-system, "Malgun Gothic", sans-serif;
+
+  --breakpoint-medium: 600px;
+  --breakpoint-expanded: 840px;
+  --breakpoint-large: 1200px;
+
+  --animate-pop: pop 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  @keyframes pop {
+    from { transform: scale(0.85); opacity: 0.4; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  --animate-drawer: drawer 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  @keyframes drawer {
+    from { transform: translateX(24px); opacity: 0; }
+    to { transform: translateX(0); opacity: 1; }
+  }
+}
+
+@layer base {
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    background: var(--color-bg);
+    color: var(--color-fg);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    font-feature-settings: "tnum" 1;
+    -webkit-tap-highlight-color: transparent;
+    -webkit-font-smoothing: antialiased;
+  }
+  .num { font-variant-numeric: tabular-nums; }
+  /* 감독실 영역: 같은 유틸리티(bg-surface · text-fg · border-line …)가 어두운 값으로 바뀜 */
+  .room {
+    --color-surface: #323b4f;
+    --color-subtle: #2c3447;
+    --color-line: #414c62;
+    --color-line-strong: #5b687f;
+    --color-fg: #e8edf4;
+    --color-fg-2: #b6c2d0;
+    --color-fg-3: #8c9bae;
+    --color-brand: #6ea2ff;
+    --color-brand-soft: #22355c;
+    --color-ok: #45c08a;
+    --color-ok-soft: #1f3b35;
+    --color-warn: #ffa94d;
+    --color-warn-fill: #e8770f;
+    --color-warn-soft: #43361f;
+    --color-danger: #e5483a;
+    --color-danger-soft: #4a2a2e;
+    background: var(--color-room);
+    color: var(--color-fg);
+  }
+  :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+  summary { list-style: none; cursor: pointer; }
+  summary::-webkit-details-marker { display: none; }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; }
+  }
+}
