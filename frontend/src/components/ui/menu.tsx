@@ -3,7 +3,7 @@ import { MoreVertical } from "lucide-react"
 import { type ReactNode, useEffect, useRef, useState } from "react"
 import { cn } from "@/lib/utils"
 
-export function Menu({ label, children, className }: { label: string; children: ReactNode; className?: string }) {
+export function Menu({ label, children, className, buttonClass }: { label: string; children: ReactNode; className?: string; buttonClass?: string }) {
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -20,12 +20,12 @@ export function Menu({ label, children, className }: { label: string; children: 
   return (
     <div ref={ref} className={cn("relative", className)}>
       <button type="button" aria-label={label} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)}
-        className={cn("grid size-8 place-items-center rounded-md text-fg-2 hover:bg-fg/10", open && "bg-fg/10")}>
+        className={cn("grid size-8 place-items-center rounded-md text-fg-2 hover:bg-fg/10", open && "bg-fg/10", buttonClass)}>
         <MoreVertical className="size-4" />
       </button>
       {open && (
         <div role="menu" onClick={() => setOpen(false)}
-          className="absolute top-9 right-0 z-30 min-w-44 overflow-hidden rounded-md border border-line bg-surface py-1 shadow-[0_6px_20px_rgba(16,24,40,0.25)]">
+          className="pop absolute top-9 right-0 z-30 min-w-44 overflow-hidden rounded-md border border-line bg-surface py-1 shadow-[0_10px_28px_rgba(0,0,0,0.45)] [&>*+*]:border-t [&>*+*]:border-line">
           {children}
         </div>
       )}

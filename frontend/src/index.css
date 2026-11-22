@@ -201,6 +201,13 @@
     background: var(--color-room);
     color: var(--color-fg);
   }
+  /* 감독실 위에 뜨는 팝업(⋮ 메뉴): 좌석 타일(#323b4f)보다 한 단계 밝은 면으로 띄움 (흰색은 너무 튐) */
+  .room .pop {
+    --color-surface: #45506a;
+    --color-subtle: #535f7a;
+    --color-line: #5f6c85;
+    color: var(--color-fg);
+  }
   :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
   summary { list-style: none; cursor: pointer; }
   summary::-webkit-details-marker { display: none; }

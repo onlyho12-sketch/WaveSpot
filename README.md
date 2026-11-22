@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="docs/images/logo.png" width="560" alt="WaveSpot · 공정한 시험을 돕는 AI 감독 에이전트 플랫폼"/>
+<img src="docs/images/logo.png" width="560" alt="WaveSpot · 공정한 시험을 돕는 AI 감독 에이전트 시스템"/>
 
 ### 시험장에 숨긴 무선 기기를 신호로 먼저 찾는 AI 감독 에이전트
 

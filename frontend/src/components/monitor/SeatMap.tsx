@@ -17,10 +17,11 @@ export type SeatState = "suspect" | "probe" | "found" | "cleared"
 const SEAT = 0.68 // 칸 너비 대비 좌석 크기 (나머지가 간격) · 앞뒤 간격 / 옆 간격 = ROW_RATIO
 
 // line: 수색 범위만 실선 (2순위 · 관찰은 점선) · core: 원 안 단색 진하기(%)
-const TONE: Record<ZoneMark["kind"], { color: string; ring: string; line: string; text: string; core: number }> = {
-  request: { color: "var(--color-danger)", ring: "border-danger", line: "border-2 border-solid", text: "text-danger", core: 14 },
-  candidate: { color: "var(--color-warn-fill)", ring: "border-warn-fill", line: "border-[1.5px] border-dashed", text: "text-warn", core: 10 },
-  watch: { color: "var(--color-warn-fill)", ring: "border-warn-fill/60", line: "border-[1.5px] border-dashed", text: "text-warn", core: 7 },
+// soft: ⋮ 버튼 바탕 (범위 색을 옅게)
+const TONE: Record<ZoneMark["kind"], { color: string; ring: string; line: string; text: string; soft: string; core: number }> = {
+  request: { color: "var(--color-danger)", ring: "border-danger", line: "border-2 border-solid", text: "text-danger", soft: "bg-danger-soft hover:bg-danger-soft", core: 14 },
+  candidate: { color: "var(--color-warn-fill)", ring: "border-warn-fill", line: "border-[1.5px] border-dashed", text: "text-warn", soft: "bg-warn-soft hover:bg-warn-soft", core: 10 },
+  watch: { color: "var(--color-warn-fill)", ring: "border-warn-fill/60", line: "border-[1.5px] border-dashed", text: "text-warn", soft: "bg-warn-soft hover:bg-warn-soft", core: 7 },
 }
 
 /** 원 안 단색 · k: 진하기 배수 (동심원 안쪽일수록 큼) */
@@ -130,7 +131,9 @@ export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compac
                     compact ? "py-px text-fs10" : "py-0.5 text-xs", TONE[m.kind].text, TONE[m.kind].ring)}>
                     {m.label}
                   </span>
-                  {menu && <Menu label={`${rangeName(m.zone, cols)} 메뉴`} className="rounded-md bg-surface">{menu}</Menu>}
+                  {/* ⋮ 버튼은 범위 색(테두리 · 옅은 바탕)으로 칠해 좌석 타일과 구분하고, 옆 라벨과 한 묶음으로 보이게 함 */}
+                  {menu && <Menu label={`${rangeName(m.zone, cols)} 메뉴`} className="rounded-md"
+                    buttonClass={cn("border", TONE[m.kind].ring, TONE[m.kind].text, TONE[m.kind].soft, "hover:brightness-125 aria-expanded:brightness-125")}>{menu}</Menu>}
                 </div>
               )
             })}
