@@ -6,7 +6,7 @@
 | 메서드 | 경로 | 설명 |
 |---|---|---|
 | GET | `/health` | 서버 확인 |
-| GET | `/status` | 시험 · 수신기(`rate` 최근 10초 초당 받은 신호 · `heard` 잡힌 기기 수) · 기준 비콘 · 허용 목록 · 시계 |
+| GET | `/status` | 시험 · 수신기(`rate` 최근 10초 초당 받은 신호 · `heard` 감지된 기기 수) · 기준 비콘 · 허용 목록 · 시계 |
 | GET | `/scenarios` | 녹화 재생 시나리오 목록 |
 | POST | `/session` | 새 시험 `{name, scenario, rows, cols}` (진행 중 시험은 종료) |
 | POST | `/session/baseline` | 입실 전 20분 기준선 → 허용 목록 등록 |

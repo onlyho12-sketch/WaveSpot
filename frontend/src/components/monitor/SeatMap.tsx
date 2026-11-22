@@ -2,7 +2,8 @@
 // 감독관에게 필요한 것만: 기준점(교탁 · 출입문 · 감독관석), 표시된 범위 · 좌석, 고장 난 수신기
 // - 좌석은 시험장 책상처럼 모두 떨어져 있음 (앞뒤 간격이 옆 간격보다 조금 넓음 · 실제 교실 비율)
 // - 의심 범위는 줄 단위 네모가 아니라 원: 전파는 기기에서 둥글게 퍼지므로 추정 위치를 중심으로 한 원형 범위(ROI)
-//   가운데가 진하고 바깥으로 갈수록 옅음 = 가운데일수록 가능성이 높음. 수신기가 빠지면 원을 한 단계 넓힘
+//   번짐 · 퍼지는 고리 같은 효과 없이 테두리 + 옅은 단색만 (Bastille 평면도의 구역 테두리). 수색 = 실선, 2순위 · 관찰 = 점선
+//   수신기가 빠지면 원을 한 단계 넓힘
 // 범위 이름 · 수신기 이름 · 범례는 화면에 나타난 것만 표시 · 표시된 범위는 ⋮ 메뉴
 import { Check, Radio, ScanSearch, X } from "lucide-react"
 import type { CSSProperties, ReactNode } from "react"
@@ -17,17 +18,16 @@ const ROW_RATIO = 1.3 // 앞뒤 간격 / 옆 간격
 const SEAT = 0.68 // 칸 너비 대비 좌석 크기 (나머지가 간격)
 const ROI = 2.8 // 원 지름 (좌석 칸 수) · 넓힘은 1.35배
 
-const TONE: Record<ZoneMark["kind"], { color: string; ring: string; text: string; core: number }> = {
-  request: { color: "var(--color-danger)", ring: "border-danger", text: "text-danger", core: 62 },
-  candidate: { color: "var(--color-warn-fill)", ring: "border-warn-fill", text: "text-warn", core: 42 },
-  watch: { color: "var(--color-warn-fill)", ring: "border-warn-fill/60", text: "text-warn", core: 28 },
+// line: 수색 범위만 실선 (2순위 · 관찰은 점선) · core: 원 안 단색 진하기(%)
+const TONE: Record<ZoneMark["kind"], { color: string; ring: string; line: string; text: string; core: number }> = {
+  request: { color: "var(--color-danger)", ring: "border-danger", line: "border-2 border-solid", text: "text-danger", core: 14 },
+  candidate: { color: "var(--color-warn-fill)", ring: "border-warn-fill", line: "border-[1.5px] border-dashed", text: "text-warn", core: 10 },
+  watch: { color: "var(--color-warn-fill)", ring: "border-warn-fill/60", line: "border-[1.5px] border-dashed", text: "text-warn", core: 7 },
 }
 
 const fill = (k: ZoneMark["kind"]): CSSProperties => {
   const { color, core } = TONE[k]
-  return {
-    background: `radial-gradient(circle closest-side, color-mix(in srgb, ${color} ${core}%, transparent) 0%, color-mix(in srgb, ${color} ${Math.round(core * 0.45)}%, transparent) 55%, color-mix(in srgb, ${color} 6%, transparent) 100%)`,
-  }
+  return { background: `color-mix(in srgb, ${color} ${core}%, transparent)` }
 }
 
 export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compact = false, selected = null, onSelect, selectable, zoneMenu, legend: showLegend = true }: {
@@ -97,18 +97,8 @@ export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compac
                 <div key={`f${m.zone}`} className="absolute aspect-square -translate-x-1/2 -translate-y-1/2 animate-roi-in transition-[width] duration-600 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
                   style={roiBox(m)}>
                   {/* 단계가 바뀌면(관찰 → 수색) 다시 그려서 한 번 커졌다 돌아옴 */}
-                  <div key={m.kind} className={cn("absolute inset-0 rounded-full border-[1.5px] border-dashed", TONE[m.kind].ring, m.kind === "request" && "animate-roi-bump")}
-                    style={fill(m.kind)}>
-                    {/* 퍼지는 전파 느낌의 안쪽 고리 */}
-                    <span className={cn("absolute inset-[24%] rounded-full border border-dashed opacity-60", TONE[m.kind].ring)} />
-                  </div>
-                  {/* 수색 범위만: 기기에서 전파가 퍼지듯 바깥으로 고리 2개 (3번 퍼지고 멈춤) */}
-                  {m.kind === "request" && (
-                    <>
-                      <span className="absolute inset-0 rounded-full border-2 border-danger opacity-0 animate-ripple" />
-                      <span className="absolute inset-0 rounded-full border-2 border-danger opacity-0 animate-ripple [animation-delay:1.2s]" />
-                    </>
-                  )}
+                  <div key={m.kind} className={cn("absolute inset-0 rounded-full", TONE[m.kind].line, TONE[m.kind].ring, m.kind === "request" && "animate-roi-bump")}
+                    style={fill(m.kind)} />
                 </div>
               ))}
             </div>
@@ -197,7 +187,7 @@ function SeatChip({ state }: { state: SeatState }) {
 }
 
 const RoiChip = ({ kind }: { kind: ZoneMark["kind"] }) => (
-  <span className={cn("size-4 rounded-full border-[1.5px] border-dashed", TONE[kind].ring)} style={fill(kind)} />
+  <span className={cn("size-4 rounded-full", TONE[kind].line, TONE[kind].ring)} style={fill(kind)} />
 )
 
 /** 천장 수신기: 정상이면 작은 아이콘만, 고장이면 빨간 점선 + 이름 */

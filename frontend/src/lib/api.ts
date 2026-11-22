@@ -76,7 +76,7 @@ export type Status = {
   selfcheck: SelfCheck[]
 }
 
-// rate 최근 10초 초당 받은 신호 · heard 들린 기기 수 · skew_ms 서버와 시각 차 · fw_ok 펌웨어 서명 · cert_ok 인증서
+// rate 최근 10초 초당 받은 신호 · heard 감지된 기기 수 · skew_ms 서버와 시각 차 · fw_ok 펌웨어 서명 · cert_ok 인증서
 export type Node = { node_id: string; status: string; last_seen: string | null; rate: number | null; heard: number | null; skew_ms?: number; fw_ok?: boolean; cert_ok?: boolean }
 
 /** 설계안 v11 10장 · 단계적 축소: normal → degraded(수신기 3/4) → no_location(2대 이상 끊김) · recovering(서버 재시작) · manual(망 장애 = 감시 중단) */
@@ -184,6 +184,7 @@ export const api = {
   control: (b: { action: "pause" | "resume"; speed?: number }) => call<Status>("POST", "/session/control", b),
   requests: () => call<SearchRequest[]>("GET", "/requests"),
   events: () => call<AgentEvent[]>("GET", "/events"),
+  devices: () => call<TrackedDevice[]>("GET", "/devices"),
   // route: 감독관이 정한 순회 경로(구역 순서) · dwell 좌석당 머무는 초
   startSearch: (id: number, again = false, route?: { zones: number[]; dwell: number }) =>
     call<SearchRequest>("POST", `/requests/${id}/start${again ? "?again=true" : ""}`, route),

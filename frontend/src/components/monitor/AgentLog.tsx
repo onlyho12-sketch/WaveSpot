@@ -52,7 +52,7 @@ export function ModelUse({ calls, className }: { calls: string[]; className?: st
       <span className="flex shrink-0 gap-0.5" aria-hidden>
         {DEVICE_MODELS.map((g) => (
           <span key={g.name} title={`${g.name} ${on.includes(g) ? "부름" : "건너뜀"}`}
-            className={cn("size-2 rounded-[2px]", on.includes(g) ? "bg-brand" : "border border-line-strong")} />
+            className={cn("size-2 rounded-[2px]", on.includes(g) ? "bg-fg-2" : "border border-line-strong")} />
         ))}
       </span>
       <span className="text-fg-3">{on.map((g) => g.name).join(", ")}</span>

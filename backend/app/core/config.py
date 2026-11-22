@@ -17,8 +17,8 @@ class Settings(BaseSettings):
     mqtt_port: int = 1883
     mqtt_topic_root: str = "wavespot"
 
-    # 재생 속도 (1.0 = 실제 시간, 10 = 10배속)
-    replay_speed: float = 10.0
+    # 재생 속도 (1.0 = 실제 시간, 30 = 30배속 · 100분 시험이 약 3분 20초)
+    replay_speed: float = 30.0
 
     # 판단 기준 (설계안 v9)
     window_seconds: float = 10.0  # 판단 창

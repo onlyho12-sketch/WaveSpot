@@ -1,9 +1,9 @@
 // 관리 · 에이전트가 실제로 어떻게 돌아가는지 (심사 · 관리자용, 감독관 화면에는 넣지 않음)
 // 탭 4개 · 처음 보는 사람은 '개요'만 봐도 되게 (숫자 · 그래프 위주, 설명 글은 각 탭 안으로)
 // - 개요(시험장 관리자 기준): 상태 카드 6개(운영 상태 · 수색 요청 · 요청 대응 시간 · 확인 중인 신호 · 장애 · 공격 탐지) → 누르면 해당 탭
-//         수색 단계 · 판단 기록 추이 · 장비 · 최근 판단 · 위험 점수 상위
+//         수색 단계 · 판단 기록 추이 · 장비 · 최근 판단 · 반입 금지 의심 기기(위험 점수순)
 // - 에이전트(심사용 근거 포함): AI 모델 호출 추이(에이전트 vs 모두 실행) · AI 모델 6개(부름 · 건너뜀) · 판단 흐름(Datadog Bits 가설 트리)
-//         · AI 판단 기록 · 지금 확인 중인 기기(Kismet) · 대응 단계(설계안 '수색 강화 사다리')
+//         · AI 판단 기록 · 지금 확인 중인 반입 금지 의심 기기(Kismet) · 대응 단계(설계안 '수색 강화 사다리')
 // - 장애 · 공격 (v11 10장): 장애 대응 표 + 재현(검증 실험 7) · 장애 · 복구 기록 · 우회 · 해킹 대응(실험 8)
 // - 장비 · 보안: 장비 · 데이터 출처 · 보안 · 권한 · 기록 위변조 확인 · 접근 기록 · 개인정보 · 보관
 // 역할(감독관 · 관리자 · 감사)은 장애 재현 · 접근 기록 권한에 필요 · 장비 및 보안 탭의 보안 및 권한 패널에서 바꿈
@@ -11,7 +11,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query"
 import { Check, ChevronRight, Minus, RefreshCw } from "lucide-react"
 import { useMemo, useState } from "react"
 import { EventColumns, LadderBars, ModelCards } from "@/components/admin/charts"
-import { dur, durParts, Meter, Tile } from "@/components/admin/kpi"
+import { durParts, faultSummary, Meter, Tile } from "@/components/admin/kpi"
 import { FaultsTab, MODE, RoomEquipment, SecurityBoard, SelfCheckList } from "@/components/admin/ops"
 import { AgentLog, ModelUse } from "@/components/monitor/AgentLog"
 import { ChainPanel } from "@/components/monitor/SystemPanels"
@@ -66,8 +66,8 @@ type Tab = "overview" | "agent" | "faults" | "system"
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "개요" },
   { key: "agent", label: "AI 에이전트" },
-  { key: "faults", label: "장애 및 공격" },
-  { key: "system", label: "장비 및 보안" },
+  { key: "faults", label: "비상 대응" },
+  { key: "system", label: "시스템" },
 ]
 let lastTab: Tab = "overview" // 다른 화면에 다녀와도 보던 탭 유지
 
@@ -166,7 +166,6 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
   const hot = devices.filter((d) => d.level >= 2).length
   const recs = faults.data?.records ?? []
   const recovered = recs.filter((f) => f.ended != null)
-  const avgRecover = recovered.length ? recovered.reduce((a, f) => a + (f.recover_sec ?? f.ended! - f.started), 0) / recovered.length : null
   const runs = attacks.data?.runs ?? []
   const injected = runs.filter((r) => r.injected)
   const caught = injected.filter((r) => r.detected_at != null)
@@ -184,7 +183,7 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
           <div className="flex gap-1">
             {nodes.map((n) => (
               <span key={n.node_id} className={cn("num grid h-6 flex-1 place-items-center rounded text-fs11 font-bold",
-                n.status === "online" ? "bg-ok-soft text-ok" : "border border-dashed border-danger bg-danger-soft text-danger")}>{n.node_id}</span>
+                n.status === "online" ? "bg-fg/[0.06] text-fg-2" : "border border-dashed border-danger bg-danger-soft text-danger")}>{n.node_id}</span>
             ))}
           </div>
         </Tile>
@@ -201,14 +200,14 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
           sub={`관찰 ${watch}, 요청 ${hot}`} onOpen={() => onOpen("agent")}>
           <Meter parts={[{ v: watch, cls: "bg-warn-fill" }, { v: hot, cls: "bg-danger" }]} total={devices.length} />
         </Tile>
-        <Tile label="장애 및 복구" tone={(h?.active.length ?? 0) > 0 ? "warn" : "ok"} value={String(recs.length)} unit="건"
-          sub={(h?.active.length ?? 0) > 0 ? `지금 ${h!.active[0].title}` : avgRecover != null ? `${recovered.length}건 복구, 평균 ${dur(avgRecover)}` : "장애 없음"} onOpen={() => onOpen("faults")}>
-          <Meter parts={[{ v: recovered.length, cls: "bg-ok" }, { v: recs.length - recovered.length, cls: "bg-warn-fill" }]} total={recs.length} />
+        <Tile label="장애 및 복구" tone={faultSummary(h?.active, recs).tone} value={String(recs.length)} unit="건"
+          sub={faultSummary(h?.active, recs).sub} onOpen={() => onOpen("faults")}>
+          <Meter parts={[{ v: recovered.length, cls: "bg-fg-3/45" }, { v: recs.length - recovered.length, cls: "bg-warn-fill" }]} total={recs.length} />
         </Tile>
         <Tile label="모의 공격 탐지" tone={injected.length && caught.length < injected.length ? "warn" : "ok"}
           value={injected.length ? `${caught.length}/${injected.length}` : "0"} unit={injected.length ? undefined : "건"}
           sub={avgTook != null ? `평균 ${avgTook}초 만에 탐지` : `실제 탐지 ${runs.length - injected.length}건`} onOpen={() => onOpen("faults")}>
-          <Meter parts={[{ v: caught.length, cls: "bg-ok" }, { v: injected.length - caught.length, cls: "bg-warn-fill" }]} total={injected.length} />
+          <Meter parts={[{ v: caught.length, cls: "bg-fg-3/45" }, { v: injected.length - caught.length, cls: "bg-warn-fill" }]} total={injected.length} />
         </Tile>
       </div>
 
@@ -259,13 +258,14 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
         <Panel title="최근 AI 에이전트 판단" aside={<More onClick={() => onOpen("agent")} />} className="flex flex-col large:min-h-0" bodyClass="large:min-h-0 large:flex-1 large:overflow-y-auto">
           <AgentLog events={events} limit={5} dense big />
         </Panel>
-        <Panel title="위험 점수 상위 기기" aside={<More onClick={() => onOpen("agent")} />} className="flex flex-col large:min-h-0" bodyClass="flex flex-1 flex-col large:min-h-0 large:overflow-y-auto">
+        {/* '부정행위 기기'는 판정처럼 읽혀서 피함 (수색 전 · 결과 판단은 감독관) → '의심' + 정렬 기준 */}
+        <Panel title={<>반입 금지 의심 기기<span className="ml-2 text-fs13 font-medium text-fg-3">위험 점수순</span></>} aside={<More onClick={() => onOpen("agent")} />} className="flex flex-col large:min-h-0" bodyClass="flex flex-1 flex-col large:min-h-0 large:overflow-y-auto">
           {top.length === 0 ? (
             <p className="m-auto px-4 py-8 text-center text-fs15 text-fg-3">확인 중인 신호 없음</p>
           ) : (
             <ul className="divide-y divide-line text-fs16">
               {top.map((d) => (
-                <li key={d.device_id} className="grid grid-cols-[7.5rem_minmax(0,1fr)_4.5rem_8rem] items-center gap-3 px-4 py-3">
+                <li key={d.device_id} className="grid grid-cols-[6.5rem_minmax(0,1fr)_3.75rem_5.5rem] items-center gap-3 px-4 py-3 large:grid-cols-[7.5rem_minmax(0,1fr)_4.5rem_8rem]">
                   <Status tone={levelTone(d.level)}><span className="text-fs15">{STATUS_NAME[d.status] ?? d.status}</span></Status>
                   <span className="truncate font-semibold">{d.kind}</span>
                   <span className="num text-fg-2">{d.zone == null ? "-" : `${d.zone}구역`}</span>
@@ -311,13 +311,13 @@ function AgentTab() {
       <LadderPanel />
       {/* 에이전트가 기기마다 어떤 모델을 불렀고 어느 단계에서 멈췄나 */}
       <div className="grid grid-cols-1 gap-3 medium:gap-4 large:grid-cols-2">
-        <Panel title={<span className="flex items-center gap-2"><Pulse on={live} />기기별 에이전트 판단 과정</span>} aside={<span className="num">최근 {list.length}대</span>}>
+        <Panel title={<span className="flex items-center gap-2"><Pulse on={live} />반입 금지 의심 기기 판단 과정</span>} aside={<span className="num">최근 {list.length}대</span>}>
           {list.length === 0 ? (
             <p className="px-4 py-10 text-center text-sm text-fg-3">아직 판단한 신호가 없습니다.</p>
           ) : (
             <>
             <p className="border-b border-line bg-subtle px-4 py-2 text-fs13 text-fg-2">
-              기기마다 ① 신호 감지 → ② 위치 추정 → ③ 수색 요청 순서로 판단하고, 확인이 끝나면 다음 단계는 건너뜁니다.
+              에이전트가 기기마다 ① 신호 감지 → ② 위치 추정 → ③ 수색 요청 순서로 판단하고, 확인이 끝나면 다음 단계는 건너뜁니다.
             </p>
             <ul className="divide-y divide-line">
               {list.map((f) => <FlowRow key={f.id} f={f} kind={kindOf(f.id)} dev={devices.find((d) => d.device_id === f.id)} />)}
@@ -372,8 +372,8 @@ const LADDER: { lv: number; tone: "ok" | "warn" | "danger"; when: string; todo: 
   { lv: 2, tone: "warn", when: "60점 이상 + 구역 확신, 또는 영상 통화나 사진 전송", todo: "휴대형 수신기로 구역 순회" },
   { lv: 3, tone: "danger", when: "70점 이상 30초 연속 + 근거 2개 이상", todo: "의심 좌석을 금속탐지기로 수색" },
 ]
-const LADDER_TOP: Record<string, string> = { ok: "border-t-ok", warn: "border-t-warn-fill", danger: "border-t-danger" }
-const LADDER_TAG: Record<string, string> = { ok: "bg-ok", warn: "bg-warn-fill", danger: "bg-danger" }
+const LADDER_TOP: Record<string, string> = { ok: "border-t-line-strong", warn: "border-t-warn-fill", danger: "border-t-danger" }
+const LADDER_TAG: Record<string, string> = { ok: "bg-fg-3", warn: "bg-warn-fill", danger: "bg-danger" }
 
 function LadderPanel() {
   const devices = useLive((s) => s.devices)
@@ -425,7 +425,7 @@ function AccessPanel() {
           <span className="num"><b className="text-fs20">{rows.length}</b> 건 <span className="text-fg-3">(최근)</span></span>
           <Status tone="ok">허용 {rows.length - denied}</Status>
           <Status tone={denied ? "off" : "neutral"}><span className={cn(denied > 0 && "font-semibold text-danger")}>거부 {denied}</span></Status>
-          <Meter className="w-36" total={rows.length} parts={[{ v: rows.length - denied, cls: "bg-ok" }, { v: denied, cls: "bg-danger" }]} />
+          <Meter className="w-36" total={rows.length} parts={[{ v: rows.length - denied, cls: "bg-fg-3/45" }, { v: denied, cls: "bg-danger" }]} />
           <span className="num ml-auto text-fg-3">{byRole.map(([k, v]) => `${k} ${v}`).join(", ")}</span>
         </div>
         <div className="max-h-[300px] overflow-auto">
@@ -472,7 +472,7 @@ function DeviceTable({ devices, allowlist }: { devices: TrackedDevice[]; allowli
   const rows = devices.filter(cur.test)
   const count = (k: (typeof FILTERS)[number]) => (k.key === "allow" ? allowlist.length : devices.filter(k.test).length)
   return (
-    <Panel title="지금 확인 중인 기기" aside={<span>교실 안에서 잡힌 신호</span>}>
+    <Panel title="지금 확인 중인 반입 금지 의심 기기" aside={<span className="hidden medium:inline">교실 안에서 잡힌 신호</span>}>
       <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-line px-3 py-2">
         {FILTERS.map((x) => (
           <button key={x.key} role="tab" type="button" aria-selected={f === x.key} onClick={() => setF(x.key)}
@@ -545,9 +545,9 @@ function FlowRow({ f, kind, dev }: { f: Flow; kind?: string; dev?: TrackedDevice
           const current = i === lastIdx && !ended
           return (
             <li key={s.name} className="relative min-w-0 pr-3">
-              {i < 2 && <span className={cn("absolute top-[13px] right-0 left-7 h-0.5", reached[i + 1] ? "bg-ok" : "border-t-2 border-dashed border-line-strong")} />}
+              {i < 2 && <span className={cn("absolute top-[13px] right-0 left-7 h-0.5", reached[i + 1] ? "bg-fg-2" : "border-t-2 border-dashed border-line-strong")} />}
               <span className={cn("relative z-10 grid size-7 place-items-center rounded-full border-2 text-xs font-bold",
-                current ? "border-brand bg-brand text-white" : done ? "border-ok bg-ok text-white" : "border-dashed border-line-strong bg-surface text-fg-3")}>
+                current ? "border-fg bg-surface text-fg" : done ? "border-fg-2 bg-fg-2 text-white" : "border-dashed border-line-strong bg-surface text-fg-3")}>
                 {done && !current ? <Check className="size-3.5" strokeWidth={3} /> : !done ? <Minus className="size-3.5" /> : i + 1}
               </span>
               <div className={cn("mt-1 text-fs14 font-semibold", !done && "text-fg-3")}>{s.name}{s.n > 1 ? <span className="num ml-1 font-medium text-fg-3">{s.n}회</span> : null}</div>
@@ -579,7 +579,7 @@ function WaitDecision({ gain, loss }: { gain: number; loss: number }) {
   )
   return (
     <span className="flex items-center gap-2 text-xs text-fg-2" title={`30초 더 볼 때 얻는 확신 ${gain.toFixed(2)}, 그동안 놓칠 위험 ${loss.toFixed(2)}`}>
-      <span className="flex items-center gap-1">더 볼 때 얻는 확신 {bar(gain, "bg-brand")}</span>
+      <span className="flex items-center gap-1">더 볼 때 얻는 확신 {bar(gain, "bg-fg-2")}</span>
       <span className="flex items-center gap-1">놓칠 위험 {bar(loss, "bg-danger")}</span>
       <Tag tone={look ? "warn" : "danger"}>{look ? "→ Lv1 추가 관찰" : "→ Lv2 휴대형 접근"}</Tag>
     </span>
@@ -590,7 +590,7 @@ function WaitDecision({ gain, loss }: { gain: number; loss: number }) {
 function ModelLegend() {
   return (
     <span className="hidden items-center gap-3 text-xs medium:flex">
-      <span className="flex items-center gap-1"><span className="size-2 rounded-[2px] bg-brand" />부른 AI 모델</span>
+      <span className="flex items-center gap-1"><span className="size-2 rounded-[2px] bg-fg-2" />부른 AI 모델</span>
       <span className="flex items-center gap-1"><span className="size-2 rounded-[2px] border border-line-strong" />건너뜀</span>
     </span>
   )
@@ -600,7 +600,7 @@ function ScoreMini({ score }: { score: number }) {
   return (
     <div className="flex items-center gap-2">
       <span className="relative h-2 flex-1 rounded-sm bg-subtle">
-        <span className={cn("absolute inset-y-0 left-0 rounded-sm", score >= 70 ? "bg-danger" : score >= 40 ? "bg-warn-fill" : "bg-ok")} style={{ width: `${Math.min(100, score)}%` }} />
+        <span className={cn("absolute inset-y-0 left-0 rounded-sm", score >= 70 ? "bg-danger" : score >= 40 ? "bg-warn-fill" : "bg-fg-3")} style={{ width: `${Math.min(100, score)}%` }} />
         <span className="absolute -inset-y-1 left-[70%] w-px bg-fg" />
       </span>
       <span className="num w-7 text-right font-semibold">{score}</span>
@@ -610,9 +610,7 @@ function ScoreMini({ score }: { score: number }) {
 
 export function Pulse({ on }: { on: boolean }) {
   return (
-    <span className="relative flex size-2.5">
-      {on && <span className="absolute inline-flex size-full animate-ping rounded-full bg-ok opacity-60" />}
-      <span className={cn("relative inline-flex size-2.5 rounded-full", on ? "bg-ok" : "bg-fg-3")} />
-    </span>
+    // 움직이는 효과 없이 점 하나: 작동 중 = 진한 회색 채움, 멈춤 = 빈 원
+    <span className={cn("inline-flex size-2.5 shrink-0 rounded-full", on ? "bg-fg-2" : "border-[1.5px] border-fg-3")} />
   )
 }

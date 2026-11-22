@@ -23,7 +23,8 @@ export function minuteStates(total: number, now: number, events: AgentEvent[], r
   return s
 }
 
-const FILL: Record<string, string> = { ok: "bg-ok/75", warn: "bg-warn-fill", danger: "bg-danger" }
+// 정상 구간은 회색 (색은 관찰 · 수색 요청에만)
+const FILL: Record<string, string> = { ok: "bg-fg-3/45", warn: "bg-warn-fill", danger: "bg-danger" }
 const NAME: Record<string, string> = { ok: "정상", warn: "관찰", danger: "수색 요청" }
 
 export function StateBand({ states, total, now, height = "h-7", showNow = true }: { states: S[]; total: number; now: number; height?: string; showNow?: boolean }) {
@@ -75,7 +76,7 @@ export function StateTimeline({ clock, events, requests, startLabel }: { clock: 
         <Axis total={total} start={startLabel} />
       </div>
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 pl-[76px] text-xs text-fg-2">
-        <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-ok/75" />정상</span>
+        <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-fg-3/45" />정상</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-warn-fill" />관찰</span>
         <span className="flex items-center gap-1.5"><span className="h-2.5 w-4 rounded-sm bg-danger" />수색 요청</span>
         <span className="flex items-center gap-1.5"><span className="h-3 w-0.5 bg-fg" />지금</span>

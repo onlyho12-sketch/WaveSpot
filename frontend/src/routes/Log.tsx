@@ -19,14 +19,14 @@ import { clockOf, cn, DONE_LABEL, isOpen, type Tone } from "@/lib/utils"
 const FILTERS = [
   { key: "main", label: "주요", test: (e: AgentEvent) => e.level === "alert" || e.level === "done" || ["결과 반영", "장비", "준비", "보안"].includes(e.stage) || e.message.includes("순회") },
   { key: "all", label: "전체", test: () => true },
-  { key: "equip", label: "장비 및 보안", test: (e: AgentEvent) => e.stage === "장비" || e.stage === "준비" || e.stage === "보안" },
+  { key: "equip", label: "시스템", test: (e: AgentEvent) => e.stage === "장비" || e.stage === "준비" || e.stage === "보안" },
 ] as const
 
 const TRACKS: { label: string; test: (e: AgentEvent) => boolean; cls: string }[] = [
   { label: "신호 감지", test: (e) => e.stage === "신호 감지", cls: "bg-fg-3" },
   { label: "관찰", test: (e) => e.stage === "위치 추정" || (e.stage === "수색" && e.level === "caution"), cls: "bg-warn-fill" },
   { label: "수색 요청", test: (e) => e.level === "alert", cls: "bg-danger" },
-  { label: "결과", test: (e) => e.stage === "결과 반영" || e.level === "done", cls: "bg-ok" },
+  { label: "결과", test: (e) => e.stage === "결과 반영" || e.level === "done", cls: "bg-fg" },
   { label: "장비", test: (e) => e.stage === "장비", cls: "bg-fg" },
   { label: "보안", test: (e) => e.stage === "보안" && !e.message.startsWith("[훈련]"), cls: "bg-danger" },
 ]

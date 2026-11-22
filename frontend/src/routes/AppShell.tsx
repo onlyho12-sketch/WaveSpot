@@ -7,8 +7,8 @@
 //   빨강 = 감독관이 움직여야 함 (감시 중단 · 위치 추정 중지 · 수신기 꺼짐) / 주황 = 자동으로 처리 중 (복구 중 · 보정 정지 · 규칙 점수)
 import { Link, Outlet } from "@tanstack/react-router"
 import { Activity, ChevronRight, ClipboardList, CloudUpload, Footprints, LayoutGrid, RefreshCw, Settings2, TriangleAlert } from "lucide-react"
-import type { ReactNode } from "react"
-import { Status } from "@/components/ui/status"
+import { type ReactNode, useEffect, useRef, useState } from "react"
+import { Shape, Status } from "@/components/ui/status"
 import type { Health } from "@/lib/api"
 import { useLive } from "@/lib/live"
 import { cn } from "@/lib/utils"
@@ -27,6 +27,20 @@ const PHASES: { key: Phase; label: string }[] = [
   { key: "after", label: "시험 후" },
 ]
 
+/** 일시 정지 표시: 평소엔 회색, 1분 넘게 멈춰 있으면 주황 ▲ + 멈춘 시간 (Stephen Few: 갱신을 멈췄다는 걸 잊지 않게) */
+const PAUSE_WARN_S = 60
+function PausedLabel() {
+  const [since] = useState(() => Date.now())
+  const [now, setNow] = useState(since)
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 5000)
+    return () => clearInterval(id)
+  }, [])
+  const s = Math.floor((now - since) / 1000)
+  if (s < PAUSE_WARN_S) return <><span className="size-2 rounded-full bg-fg-3" />일시 정지</>
+  return <span className="flex items-center gap-1.5 text-warn"><Shape tone="warn" className="size-2.5" />일시 정지 {Math.floor(s / 60)}분째</span>
+}
+
 export function AppShell() {
   const status = useLive((s) => s.status)
   const clock = useLive((s) => s.clock)
@@ -42,6 +56,15 @@ export function AppShell() {
   const running = clock?.state === "running"
   const phase: Phase = clock?.state === "running" ? "during" : clock?.state === "ended" ? "after" : "before"
   const left = clock ? Math.max(0, clock.duration_min - Math.floor(Math.max(clock.t, 0) / 60)) : null
+  // 위쪽 줄(장애 배너 포함) 높이 → --shell-top · 감독 화면이 남은 높이를 꽉 채우는 데 씀 (배너가 뜨면 높이가 바뀜)
+  const headerRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const ro = new ResizeObserver(() => document.documentElement.style.setProperty("--shell-top", `${el.offsetHeight}px`))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
   const badge = (to: string, cls: string) =>
     to === "/roam" && openCount > 0 && (
       <span className={`absolute grid h-[18px] min-w-[18px] place-items-center rounded-full bg-danger px-1 text-fs11 font-bold text-white ${cls}`}>{openCount}</span>
@@ -71,7 +94,7 @@ export function AppShell() {
       </nav>
 
       <div className="flex min-w-0 flex-1 flex-col pb-[calc(4rem+env(safe-area-inset-bottom))] expanded:pb-0">
-        <header className="sticky top-0 z-30 border-b border-line bg-surface pt-[env(safe-area-inset-top)]">
+        <header ref={headerRef} className="sticky top-0 z-30 border-b border-line bg-surface pt-[env(safe-area-inset-top)]">
           <div className="flex h-14 items-center gap-3 px-4 medium:gap-4 medium:px-5">
             <img src="/icon.png" alt="WaveSpot" className="size-8 rounded-lg expanded:hidden" />
             <div className="min-w-0 truncate text-fs15 font-bold">{status?.session?.name ?? "시험 없음"}</div>
@@ -88,7 +111,7 @@ export function AppShell() {
             </ol>
             {running && (
               <span className="hidden items-center gap-1.5 text-fs13 font-semibold medium:flex">
-                {clock?.paused ? <><span className="size-2 rounded-full bg-fg-3" />일시 정지</> : <><span className="size-2 animate-pulse rounded-full bg-danger" />기록 중</>}
+                {clock?.paused ? <PausedLabel /> : <><span className="size-2 rounded-full bg-fg-2" />기록 중</>}
               </span>
             )}
 
@@ -154,7 +177,7 @@ function HealthBanners({ health, down, running, nodeTrouble }: { health?: Health
   else if (health.mode === "recovering")
     list.push(<Banner key="rec" tone="warn"><RefreshCw className="size-4 shrink-0 animate-spin" />현장 서버 복구 중. 마지막 저장 상태{health.checkpoint ? `(${health.checkpoint.slice(0, 5)})` : ""}로 이어서 판단합니다. 30초 안에 자동 해제</Banner>)
   if (running && health.mode === "no_location")
-    list.push(<Banner key="noloc">수신기 {down.join(", ")} 꺼짐. <b>위치 추정 중지</b> — 숨은 기기가 있는지만 판단합니다. 휴대형으로 교실 전체를 순회하세요</Banner>)
+    list.push(<Banner key="noloc">수신기 {down.join(", ")} 꺼짐. <b>위치 추정 중지</b> — 반입 금지 기기가 있는지만 판단합니다. 휴대형으로 교실 전체를 순회하세요</Banner>)
   else if (running && health.mode === "degraded")
     list.push(<Banner key="deg">수신기 {down.join(", ")} 꺼짐. 남은 3대로 위치를 계산합니다 (범위를 넓게 표시). 전원과 연결을 확인하세요</Banner>)
   else if (!running && nodeTrouble)

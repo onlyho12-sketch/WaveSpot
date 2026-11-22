@@ -45,7 +45,7 @@ export function ModelCards({ models, byModel, total: total0, totals = {} }: { mo
         return (
           <li key={k} className="rounded-md border border-line px-3 py-2.5" title={`${info.name} 모델${info.algo ? ` (${info.algo})` : ""}: 부름 ${n.toLocaleString()}회, 건너뜀 ${skipped.toLocaleString()}회 (기기별 판단 ${total.toLocaleString()}회 기준)`}>
             <div className="flex items-start gap-2.5">
-              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-brand-soft text-brand [&_svg]:size-4">{info.icon}</span>
+              <span className="grid size-8 shrink-0 place-items-center rounded-md bg-subtle text-fg-2 [&_svg]:size-4">{info.icon}</span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-2">
                   <span className="truncate text-fs13 font-semibold">{info.name}</span>
@@ -55,7 +55,7 @@ export function ModelCards({ models, byModel, total: total0, totals = {} }: { mo
               </div>
             </div>
             <span className="mt-2 flex h-2 gap-[2px] overflow-hidden rounded-full bg-subtle">
-              {n > 0 && <span className="h-full bg-brand" style={{ width: `${share * 100}%` }} />}
+              {n > 0 && <span className="h-full bg-fg-2" style={{ width: `${share * 100}%` }} />}
               {skipped > 0 && <span className="h-full flex-1 bg-line-strong/50" />}
             </span>
             <div className="num mt-1 flex text-fs11 text-fg-3">
@@ -134,7 +134,7 @@ export function LadderBars({ now, results }: {
   results: { label: string; n: number; tone: Tone }[]
 }) {
   const max = Math.max(1, ...now.map((r) => r.n))
-  const bar: Record<Tone, string> = { warn: "bg-warn-fill", danger: "bg-danger", ok: "bg-ok", neutral: "bg-fg-2", off: "bg-danger", brand: "bg-brand" }
+  const bar: Record<Tone, string> = { warn: "bg-warn-fill", danger: "bg-danger", ok: "bg-fg-3", neutral: "bg-fg-2", off: "bg-danger", brand: "bg-brand" }
   const row = (key: string, head: ReactNode, n: number, tone: Tone) => (
     <li key={key} className="grid grid-cols-[9rem_minmax(0,1fr)] items-center gap-3 text-fs16">
       {head}

@@ -34,7 +34,7 @@ class SimDevice:
 
 def _demo() -> dict[str, Any]:
     return {
-        "title": "시연: v10 상황 ①~⑦ (모의 데이터)",
+        "title": "부정행위자가 있는 시험 (모의 데이터)",
         "devices": [
             # ① 허용 목록 · ③ 주소만 바뀐 정상 기기 (감독관 폰은 15분마다 주소 변경)
             SimDevice("desk-phone", "감독관 휴대폰", "desk", -1200, rotate=900, meta={"company": "0x0075", "interval": 300}),

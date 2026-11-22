@@ -44,11 +44,11 @@ function where(req?: Pick<SearchRequest, "level" | "state">): { now: Id | null; 
 }
 
 const RING: Record<Tone, string> = {
-  ok: "border-ok bg-ok-soft", warn: "border-warn-fill bg-warn-soft", danger: "border-danger bg-danger-soft",
+  ok: "border-line-strong bg-subtle", warn: "border-warn-fill bg-warn-soft", danger: "border-danger bg-danger-soft",
   neutral: "border-fg bg-fg/[0.06]", off: "border-danger bg-danger-soft", brand: "border-brand bg-brand-soft",
 }
 const TAG: Record<Tone, string> = {
-  ok: "bg-ok text-white", warn: "bg-warn-fill text-white", danger: "bg-danger text-white", neutral: "bg-fg-2 text-white", off: "bg-danger text-white", brand: "bg-brand text-white",
+  ok: "bg-fg-3 text-white", warn: "bg-warn-fill text-white", danger: "bg-danger text-white", neutral: "bg-fg-2 text-white", off: "bg-danger text-white", brand: "bg-brand text-white",
 }
 
 export function LadderFlow({ req, counts, className, wide = false }: {

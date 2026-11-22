@@ -1,11 +1,12 @@
-// 수색 요청 카드 ('AI 신호 감지' 패널: 점수 원형 배지 + 제목 + 근거 2줄 + 버튼 2개 = v10 두 번 터치 원칙)
+// 수색 요청 카드 ('에이전트 무선신호 감지' 패널: 점수 원형 배지 + 제목 + 근거 2줄 + 버튼 2개 = v10 두 번 터치 원칙)
 // 근거 서랍 (Kismet 상세 서랍 · Atlassian 진행 단계). 감독관에게 필요한 것만: 근거 몇 줄 · 틀릴 수 있는 이유 · 볼 곳 · 할 일
 // · 대응 단계 흐름(v11 그림 22, 이 요청의 지금 위치 강조)
 // 점수는 카드 배지 하나만 (레퍼런스 v10 27번). 확률 · 모델 출처 · 조사 로그는 기록 · 관리 화면에만
 // 모델 오류 · 장비 이상으로 규칙 점수를 썼으면 카드에 '규칙 점수' 꼬리표 (v11 10장)
 import { useNavigate } from "@tanstack/react-router"
 import { ChevronDown, Footprints, ScanSearch } from "lucide-react"
-import { type ReactNode, useState } from "react"
+import { type ReactNode, useMemo, useState } from "react"
+import { AgentLog } from "@/components/monitor/AgentLog"
 import { LadderFlow } from "@/components/monitor/LadderFlow"
 import { Button } from "@/components/ui/button"
 import { Sheet } from "@/components/ui/sheet"
@@ -131,7 +132,7 @@ export function RequestCard({ req, startLabel = "09:00", flush = false }: { req:
           {zoneCase && <div className="num text-fs13 text-fg-3">{targetSub(req)}</div>}
           <ul className="mt-2 space-y-1">
             {topReasons(req).map((e) => (
-              <li key={e.label} className="grid grid-cols-[4.5rem_1fr] gap-2 text-fs14 leading-snug">
+              <li key={e.label} className="grid grid-cols-[5.5rem_1fr] gap-2 text-fs14 leading-snug">
                 <span className="font-semibold text-fg-2">{e.label}</span>
                 <span className="min-w-0 truncate text-fg-2">{plain(e.value)}</span>
               </li>
@@ -162,6 +163,7 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
   const facts = req.evidence.filter((e) => e.label !== "조사 기록" && e.label !== "대략 구역")
   const since = deviceSeen(events, req.device_id).first?.slice(0, 5)
   const tone = req.level >= 3 ? "danger" : "warn"
+  const history = useMemo(() => events.filter((e) => e.device_id === req.device_id && e.sim_time >= 0), [events, req.device_id])
 
   return (
     <Sheet
@@ -193,6 +195,13 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
       <Section title="근거">
         <SourceTabs req={req} facts={facts} />
       </Section>
+
+      {/* Mercer Mettl 응시자 상세: 이 기기에 대한 판단을 '시각 + 한 줄'로 (처음 잡힘 → 관찰 → 수색 요청 순서가 보이게) */}
+      {history.length > 0 && (
+        <Section title={`시간순 기록 ${history.length}`}>
+          <div className="-mx-4 -mt-1"><AgentLog events={history} limit={8} dense /></div>
+        </Section>
+      )}
 
       {req.counter?.length > 0 && (
         <Section title="틀릴 수 있는 이유">

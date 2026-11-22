@@ -49,9 +49,9 @@ export function ChainPanel({ sessionId }: { sessionId: number | null }) {
         ) : (
           <>
             <div className="flex items-center gap-3">
-              {v.ok ? <ShieldCheck className="size-9 text-ok" /> : <ShieldAlert className="size-9 text-danger" />}
+              {v.ok ? <ShieldCheck className="size-8 text-fg-3" /> : <ShieldAlert className="size-9 text-danger" />}
               <div>
-                <div className={cn("text-fs19 font-bold", v.ok ? "text-ok" : "text-danger")}>{v.ok ? "고친 흔적 없음" : "기록이 바뀌었습니다"}</div>
+                <div className={cn("text-fs17 font-bold", v.ok ? "text-fg" : "text-danger")}>{v.ok ? "고친 흔적 없음" : "기록이 바뀌었습니다"}</div>
                 <div className="num text-fs13 text-fg-3">기록 {v.count.toLocaleString()}건. 판단, 결과, 의견마다 앞 기록과 연결한 해시로 확인</div>
               </div>
             </div>

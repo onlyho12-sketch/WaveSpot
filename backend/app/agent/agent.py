@@ -338,7 +338,7 @@ class Agent:
             await self.log(t, "장비", f"수신기 {who} 끊김, {how}, 구역 표시 한 단계 넓힘", "caution",
                            data={"calls": ["위치"], "skipped": []})
         elif nodes_ok <= 2:
-            await self.log(t, "장비", f"수신기 {who} 끊김 ({nodes_ok}/4), 위치 추정 중지, 숨은 기기가 있는지만 판단, 휴대형 순회 권장", "alert",
+            await self.log(t, "장비", f"수신기 {who} 끊김 ({nodes_ok}/4), 위치 추정 중지, 반입 금지 기기가 있는지만 판단, 휴대형 순회 권장", "alert",
                            data={"calls": [], "skipped": ["위치"]})
         elif nodes_ok == 4:
             await self.log(t, "장비", "수신기 4/4 복구, 4대용 위치 모델로 복귀", "info")
@@ -418,7 +418,7 @@ class Agent:
             self._calls(["묶기", "안/밖"])
             if tr.consec >= need and "noloc" not in tr.flags:
                 tr.flags.add("noloc")
-                await self.log(t, "신호 감지", f"{int(need * win)}초 연속 확인 → 숨은 기기 있음, 수신기 {self.nodes_ok}/4라 위치 추정 중지 → 휴대형으로 교실 전체 순회 권장",
+                await self.log(t, "신호 감지", f"{int(need * win)}초 연속 확인 → 반입 금지 기기 있음, 수신기 {self.nodes_ok}/4라 위치 추정 중지 → 휴대형으로 교실 전체 순회 권장",
                                "caution", tr.meta_id, {"calls": ["묶기", "안/밖"], "skipped": ["위치", "종류", "용도", "점수"]})
             tr.status, tr.level = ("caution", 1) if tr.consec >= need else ("observing", 1)
             return
@@ -453,7 +453,7 @@ class Agent:
         score, ev = self._score(tr, loc, t)
         tr.score = score
         if tr.consec == need:
-            await self.log(t, "신호 감지", f"{int(need * win)}초 연속 확인 → 숨은 기기 있음, {loc.zone}구역 추정, 위험 {score}점", "caution",
+            await self.log(t, "신호 감지", f"{int(need * win)}초 연속 확인 → 반입 금지 기기 있음, {loc.zone}구역 추정, 위험 {score}점", "caution",
                            tr.meta_id, calls)
         if score < self.caution_score:
             tr.status, tr.level, tr.high = "observing", 1, 0

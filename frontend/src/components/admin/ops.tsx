@@ -7,7 +7,7 @@ import {
 } from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { SpanTimeline, type SpanRow } from "@/components/admin/charts"
-import { dur, Meter, Tile } from "@/components/admin/kpi"
+import { dur, faultSummary, Meter, Tile } from "@/components/admin/kpi"
 import { Button } from "@/components/ui/button"
 import { Panel, Shape, Status, Tag } from "@/components/ui/status"
 import { api, getRole, ROLE_NAME, type AttackSpec, type Role, type Status as LiveStatus } from "@/lib/api"
@@ -18,12 +18,12 @@ import { cn, type Tone } from "@/lib/utils"
 export const MODE: Record<string, { label: string; short: string; tone: Tone; desc: string }> = {
   normal: { label: "정상", short: "정상", tone: "ok", desc: "수신기 4대와 AI 모델로 판단" },
   degraded: { label: "수신기 3대로 판단", short: "수신기 3대", tone: "warn", desc: "3대용 위치 모델 (범위를 넓게 표시)" },
-  no_location: { label: "위치 추정 중지", short: "위치 추정 중지", tone: "danger", desc: "숨은 기기 여부만 판단하고 휴대형으로 순회" },
+  no_location: { label: "위치 추정 중지", short: "위치 추정 중지", tone: "danger", desc: "반입 금지 기기 여부만 판단하고 휴대형으로 순회" },
   manual: { label: "감시 중단", short: "감시 중단", tone: "danger", desc: "망 끊김. 수신기에 자체 저장하고 수동 감독" },
   recovering: { label: "복구 중", short: "복구 중", tone: "warn", desc: "서버 재시작 후 저장된 상태로 이어서 판단" },
 }
 const RING: Record<Tone, string> = {
-  ok: "border-ok bg-ok-soft", warn: "border-warn-fill bg-warn-soft", danger: "border-danger bg-danger-soft",
+  ok: "border-line-strong bg-subtle", warn: "border-warn-fill bg-warn-soft", danger: "border-danger bg-danger-soft",
   off: "border-danger bg-danger-soft", neutral: "border-line-strong bg-subtle", brand: "border-brand bg-brand-soft",
 }
 const LADDER_NAME = ["감시", "추가 관찰", "휴대형 접근", "정밀 수색", "2차 수색"]
@@ -64,7 +64,6 @@ export function FaultsTab() {
 
   const recs = faults.data?.records ?? []
   const recovered = recs.filter((f) => f.ended != null)
-  const avgRecover = recovered.length ? recovered.reduce((a, f) => a + (f.recover_sec ?? f.ended! - f.started), 0) / recovered.length : null
   const missed = recs.reduce((a, f) => a + (f.missed ?? 0), 0)
   const a = attacks.data
   const runs = a?.runs ?? []
@@ -77,7 +76,7 @@ export function FaultsTab() {
   if (modeKey === "no_location") activeKinds.add("node2")
   const canFault = !!faults.data?.can_inject && running && isAdmin
   const canAttack = !!a?.can_inject && isAdmin
-  const hintText = !isAdmin ? "모의 훈련은 관리자 역할만 (장비 및 보안 탭에서 바꿈)" : !running ? "모의 훈련은 시험 중에만" : null
+  const hintText = !isAdmin ? "모의 훈련은 관리자 역할만 (시스템 탭에서 바꿈)" : !running ? "모의 훈련은 시험 중에만" : null
   // 휴대폰은 제목이 꺾이지 않게 짧게
   const hint = hintText && (
     <span><span className="medium:hidden">{isAdmin ? "시험 중에만 훈련" : "관리자만 훈련"}</span><span className="hidden medium:inline">{hintText}</span></span>
@@ -109,24 +108,24 @@ export function FaultsTab() {
   ].sort((x, y) => x.start - y.start)
 
   const groups: { key: AttackSpec["group"]; title: string }[] = [
-    { key: "evade", title: "① 절차를 아는 부정행위자의 회피" },
-    { key: "hack", title: "② 시험 중 외부 조력자의 서버 해킹" },
+    { key: "evade", title: "탐지를 피하려는 부정행위자 (내부 공격)" },
+    { key: "hack", title: "시험 중 외부 조력자의 서버 해킹 (외부 공격)" },
   ]
   const cat = a?.catalog ?? []
 
   return (
     <>
       <div className="grid grid-cols-2 gap-3 medium:gap-4 large:grid-cols-4">
-        <Tile label="장애 및 복구" tone={(h?.active.length ?? 0) > 0 ? "warn" : "ok"} value={String(recs.length)} unit="건"
-          sub={(h?.active.length ?? 0) > 0 ? `지금 ${h!.active[0].title}` : avgRecover != null ? `${recovered.length}건 복구, 평균 ${dur(avgRecover)}` : "장애 없음"}>
-          <Meter parts={[{ v: recovered.length, cls: "bg-ok", label: "복구" }, { v: recs.length - recovered.length, cls: "bg-warn-fill", label: "진행 중" }]} total={recs.length} />
+        <Tile label="장애 및 복구" tone={faultSummary(h?.active, recs).tone} value={String(recs.length)} unit="건"
+          sub={faultSummary(h?.active, recs).sub}>
+          <Meter parts={[{ v: recovered.length, cls: "bg-fg-3/45", label: "복구" }, { v: recs.length - recovered.length, cls: "bg-warn-fill", label: "진행 중" }]} total={recs.length} />
         </Tile>
         <Tile label="놓친 측정값" tone={missed > 0 ? "warn" : "ok"} value={missed.toLocaleString()} unit="건"
           sub={missed > 0 ? "수신기에 저장 후 동기화해 사후 반영" : "실시간 판단에서 빠진 값 없음"} />
         <Tile label="모의 공격 탐지" tone={injected.length && caught.length < injected.length ? "warn" : "ok"}
           value={injected.length ? `${caught.length}/${injected.length}` : "0"} unit={injected.length ? undefined : "건"}
           sub={avgTook != null ? `평균 ${dur(avgTook)} 만에 탐지` : `훈련 없음, 실제 탐지 ${runs.length - injected.length}건`}>
-          <Meter parts={[{ v: caught.length, cls: "bg-ok", label: "탐지" }, { v: injected.length - caught.length, cls: "bg-warn-fill", label: "미탐지" }]} total={injected.length} />
+          <Meter parts={[{ v: caught.length, cls: "bg-fg-3/45", label: "탐지" }, { v: injected.length - caught.length, cls: "bg-warn-fill", label: "미탐지" }]} total={injected.length} />
         </Tile>
         <Tile label="거부한 측정값" tone={(a?.rejected ?? 0) > 0 ? "warn" : "ok"} value={(a?.rejected ?? 0).toLocaleString()} unit="건"
           sub="등록 안 된 수신기나 불가능한 세기 조합" />
@@ -145,7 +144,7 @@ export function FaultsTab() {
                   {k !== "recovering" && <span className="num text-xs text-fg-3">{i + 1}</span>}
                   <Shape tone={m.tone} className="size-2.5" />
                   {m.label}
-                  {cur && <Tag tone="brand" solid className="ml-auto h-5">지금</Tag>}
+                  {cur && <Tag tone="neutral" solid className="ml-auto h-5">지금</Tag>}
                 </div>
                 <div className="mt-0.5 text-xs text-fg-2">{m.desc}</div>
               </li>
@@ -245,7 +244,7 @@ export function FaultsTab() {
         </ul>
       </Panel>
 
-      <Panel title="우회 및 해킹 대응" aside={hint}>
+      <Panel title="공격 대응" aside={hint}>
         <div className="border-b border-line p-4">
           <dl className="grid grid-cols-1 gap-2 text-fs16 medium:grid-cols-2">
             <div className="rounded-md bg-subtle px-4 py-2.5">
@@ -364,7 +363,7 @@ export function RoomEquipment({ status }: { status: LiveStatus | null }) {
           const ok = node(id)?.status === "online"
           return (
             <span key={id} className={cn("absolute flex items-center gap-1 rounded-full border-[1.5px] px-2 py-0.5 text-fs13 font-bold", CORNER[id],
-              ok ? "border-ok bg-ok-soft text-ok" : "border-dashed border-danger bg-danger-soft text-danger")}>
+              ok ? "border-line-strong bg-subtle text-fg-2" : "border-dashed border-danger bg-danger-soft text-danger")}>
               {ok ? <Radio className="size-3.5" /> : <X className="size-3.5" strokeWidth={3} />}{id}
             </span>
           )
@@ -379,7 +378,7 @@ export function RoomEquipment({ status }: { status: LiveStatus | null }) {
               <th className="py-2 pr-3 font-semibold">천장 수신기</th>
               <th className="py-2 pr-3 font-semibold">상태</th>
               <th className="py-2 pr-3 text-right font-semibold">받은 신호</th>
-              <th className="py-2 pr-3 text-right font-semibold">들린 기기</th>
+              <th className="py-2 pr-3 text-right font-semibold">감지된 기기</th>
               <th className="py-2 pr-3 text-right font-semibold">시계 차</th>
               <th className="py-2 text-right font-semibold">마지막 수신</th>
             </tr>
@@ -397,15 +396,22 @@ export function RoomEquipment({ status }: { status: LiveStatus | null }) {
                   <td className="num py-2 pr-3 text-right">{ok && n?.rate != null ? `${n.rate}건/초` : "-"}</td>
                   <td className="num py-2 pr-3 text-right">{ok ? `${n?.heard ?? "-"}대` : "-"}</td>
                   <td className={cn("num py-2 pr-3 text-right", (n?.skew_ms ?? 0) > 200 && "font-semibold text-danger")}>{ok && n?.skew_ms != null ? `${n.skew_ms}ms` : "-"}</td>
-                  <td className="num py-2 text-right text-fg-2">{n?.last_seen ? n.last_seen.slice(11, 19) : "-"}</td>
+                  <td className="num py-2 text-right text-fg-2" title={n?.last_seen ?? undefined}>{n?.last_seen ? ago(n.last_seen) : "-"}</td>
                 </tr>
               )
             })}
           </tbody>
         </table>
       </div>
+      <p className="mt-2 text-xs text-fg-3">감지된 기기: 최근 10초 동안 이 수신기에 신호가 들어온 기기 수</p>
     </div>
   )
+}
+
+/** 수신기가 보낸 마지막 시각(PC 실제 시각) → '3초 전' (위쪽 시험 시계와 섞이지 않게 지난 시간으로) */
+function ago(iso: string) {
+  const s = Math.max(0, Math.round((Date.now() - Date.parse(iso)) / 1000))
+  return s < 2 ? "방금" : s < 60 ? `${s}초 전` : `${Math.floor(s / 60)}분 전`
 }
 
 /** 시험 전 자가 점검 (v11) */
@@ -417,12 +423,12 @@ export function SelfCheckList({ status }: { status: LiveStatus | null }) {
       <div className="flex items-center gap-3 border-b border-line px-4 py-3">
         <span className="num text-fs22 leading-none font-bold">{ok}<span className="text-fs15 text-fg-3">/{items.length}</span></span>
         <span className="text-fs13 font-semibold text-fg-2">통과</span>
-        <Meter className="ml-auto w-32" total={items.length} parts={[{ v: ok, cls: "bg-ok" }, { v: items.filter((i) => i.ok === false).length, cls: "bg-danger" }]} />
+        <Meter className="ml-auto w-32" total={items.length} parts={[{ v: ok, cls: "bg-fg-3/45" }, { v: items.filter((i) => i.ok === false).length, cls: "bg-danger" }]} />
       </div>
       <ul className="divide-y divide-line text-sm">
         {items.map((i) => (
           <li key={i.key} className="flex items-center gap-2.5 px-4 py-2.5">
-            <span className={cn("grid size-5 shrink-0 place-items-center rounded-full", i.ok ? "bg-ok text-white" : i.ok === false ? "bg-danger text-white" : "bg-subtle text-fg-3")}>
+            <span className={cn("grid size-5 shrink-0 place-items-center rounded-full", i.ok ? "bg-fg/[0.08] text-fg-2" : i.ok === false ? "bg-danger text-white" : "bg-subtle text-fg-3")}>
               {i.ok ? <Check className="size-3" strokeWidth={3.5} /> : i.ok === false ? <X className="size-3" strokeWidth={3.5} /> : <Minus className="size-3" />}
             </span>
             <span className="font-semibold">{i.label}</span>
@@ -470,7 +476,7 @@ export function SecurityBoard({ status, role, aside }: { status: LiveStatus | nu
           {items.map((i) => (
             <li key={i.title} className="flex items-start gap-3 rounded-md border border-line px-3 py-2.5">
               <span className={cn("grid size-8 shrink-0 place-items-center rounded-md [&_svg]:size-4",
-                i.tone === "ok" ? "bg-ok-soft text-ok" : i.tone === "warn" ? "bg-warn-soft text-warn" : "bg-subtle text-fg-3")}>{i.icon}</span>
+                i.tone === "ok" ? "bg-subtle text-fg-2" : i.tone === "warn" ? "bg-warn-soft text-warn" : "bg-subtle text-fg-3")}>{i.icon}</span>
               <span className="min-w-0">
                 <span className="block text-fs13 font-semibold">{i.title}</span>
                 <span className="block text-xs leading-snug text-fg-3">{i.desc}</span>
@@ -504,7 +510,7 @@ export function SecurityBoard({ status, role, aside }: { status: LiveStatus | nu
                   <td className="px-4 py-2 text-fs13">{p.what}</td>
                   {(Object.keys(ROLE_NAME) as Role[]).map((r) => (
                     <td key={r} className={cn("py-2 text-center", r === role && "bg-brand-soft/50")}>
-                      {p.roles[r] ? <Check className="mx-auto size-4 text-ok" strokeWidth={3} /> : <Minus className="mx-auto size-4 text-fg-3" />}
+                      {p.roles[r] ? <Check className="mx-auto size-4 text-fg-2" strokeWidth={3} /> : <Minus className="mx-auto size-4 text-fg-3" />}
                     </td>
                   ))}
                 </tr>

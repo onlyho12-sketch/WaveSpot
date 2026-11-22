@@ -47,6 +47,10 @@ def impossible(rssi: dict[str, float]) -> str | None:
     return None
 
 
+# 블루투스 제조사 번호 → 이름 (허용 기기 이름에 씀 · agent_models.COMPANIES 와 같은 5곳)
+MAKER = {"0x004C": "애플", "0x0075": "삼성", "0x0006": "마이크로소프트", "0x00E0": "구글", "0x01AB": "메타"}
+
+
 class NodeMeter:
     """수신기 점검 표: 창마다 수신기별 받은 신호 수(초당) · 들린 기기 수.
     실제로 받은 측정값만 셈 (지연 · 비콘 세기처럼 지금 측정하지 않는 값은 만들지 않음)."""
@@ -200,7 +204,9 @@ class Engine:
             for mid, m in self.agent.linker.metas.items():
                 if mid in self.agent.allow:
                     continue
-                label = f"기준선 기기 {len(self.agent.allow) + 1}, 주소 {len(m.sources)}개"
+                # 화면에 보이는 이름: '감독관·교실 기기 1 (삼성)' (종류는 모르니 제조사만) · 쉼표 뒤는 관리 화면용 상세
+                maker = MAKER.get(m.company or "")
+                label = f"감독관·교실 기기 {len(self.agent.allow) + 1}{f' ({maker})' if maker else ''}, 주소 {len(m.sources)}개"
                 s.add(AllowedDevice(session_id=self.session.id, device_id=mid, label=label, reason="baseline"))
                 self.agent.allow[mid] = label
                 added.append({"device_id": mid, "label": label})

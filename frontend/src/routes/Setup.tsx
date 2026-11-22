@@ -4,7 +4,6 @@
 // v11 10장: 자가 점검(수신기 4/4 · 기준 비콘 · 시계 동기화 · 저장 공간 · 펌웨어 서명 · 인증서 · AI 모델)을 통과해야만 '감시 시작'이 켜짐
 import { useQuery } from "@tanstack/react-query"
 import { useNavigate } from "@tanstack/react-router"
-import { Pause, Play } from "lucide-react"
 import { type ReactNode, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Panel, Status, Tracker } from "@/components/ui/status"
@@ -14,7 +13,6 @@ import { cn, NODE_PLACE, type Tone } from "@/lib/utils"
 
 export function Setup() {
   const status = useLive((s) => s.status)
-  const clock = useLive((s) => s.clock)
   const navigate = useNavigate()
   const scenarios = useQuery({ queryKey: ["scenarios"], queryFn: api.scenarios })
   const [busy, setBusy] = useState<string | null>(null)
@@ -63,7 +61,7 @@ export function Setup() {
                 <th className="py-2 font-semibold">장비</th>
                 <th className="hidden px-4 py-2 font-semibold medium:table-cell">위치</th>
                 <th className="px-4 py-2 text-right font-semibold">받은 신호</th>
-                <th className="py-2 pr-4 text-right font-semibold">잡히는 기기</th>
+                <th className="py-2 pr-4 text-right font-semibold">감지된 기기</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -88,7 +86,11 @@ export function Setup() {
               </tr>
             </tbody>
           </table>
-          <p className="border-t border-line px-4 py-2 text-xs text-fg-3">최근 10초 기준이며 시험 중에는 1분마다 갱신합니다. 받은 신호가 0이면 확인하세요</p>
+          <div className="space-y-0.5 border-t border-line px-4 py-2 text-xs text-fg-3">
+            <p>받은 신호: 이 수신기가 1초에 받은 신호 건수</p>
+            <p>감지된 기기: 이 수신기에 신호가 들어온 기기 수</p>
+            <p>최근 10초 기준이며 시험 중에는 1분마다 갱신합니다. 받은 신호가 0이면 확인하세요</p>
+          </div>
           {sysChecks.length > 0 && (
             <ul className="grid divide-line border-t border-line text-sm medium:grid-cols-2 medium:divide-x">
               {sysChecks.map((c) => (
@@ -106,7 +108,17 @@ export function Setup() {
         </Panel>
 
         <Panel title="2. 기준선">
-          {state === "setup" && <div className="px-4 py-3 text-sm text-fg-2">수험생 입실 전에 만드세요.</div>}
+          {state === "setup" && (
+            <div className="px-4 py-3 text-sm text-fg-2">
+              수험생 입실 전에 만드세요.
+              <p className="mt-0.5 text-fs13 text-fg-3">지금 교실에서 잡히는 감독관 휴대폰, 교실 TV 같은 기기를 등록해 탐지 대상에서 뺍니다.</p>
+            </div>
+          )}
+          {(status?.allowlist.length ?? 0) > 0 && (
+            <p className="border-b border-line bg-subtle px-4 py-2 text-fs13 text-fg-3">
+              감독관 휴대폰, 교실 TV처럼 입실 전부터 교실에 있던 기기 {status?.allowlist.length}대. 탐지 대상에서 뺍니다.
+            </p>
+          )}
           {(status?.allowlist.length ?? 0) > 0 && (
             <ul className="divide-y divide-line text-sm">
               {status?.allowlist.map((a) => (
@@ -159,27 +171,7 @@ export function Setup() {
       </div>
 
       <aside className="flex flex-col gap-3 medium:gap-4">
-        {status?.source === "replay" && (
-          <Panel title="녹화 재생" bodyClass="p-4">
-            <Field label="재생 속도">
-              <div role="radiogroup" className="grid grid-cols-4 rounded-md border border-line-strong p-0.5">
-                {[1, 10, 30, 60].map((x) => (
-                  <button key={x} type="button" role="radio" aria-checked={clock?.speed === x}
-                    onClick={() => run("speed", async () => patchStatus(await api.control({ action: "resume", speed: x })))}
-                    className={cn("num h-9 rounded-[5px] text-sm font-semibold", clock?.speed === x ? "bg-fg text-white" : "text-fg-2 hover:bg-fg/5")}>
-                    {x}배
-                  </button>
-                ))}
-              </div>
-            </Field>
-            {state === "running" && (
-              <Button variant="secondary" className="mt-3 w-full" onClick={() => run("pause", async () => patchStatus(await api.control({ action: clock?.paused ? "resume" : "pause" })))}>
-                {clock?.paused ? <><Play />재생 계속</> : <><Pause />일시 정지</>}
-              </Button>
-            )}
-          </Panel>
-        )}
-
+        {/* 재생 속도 · 일시 정지 칸은 뺌 (시연은 서버 기본 30배속으로 진행) · 부정행위 있음 / 없음 비교용 시나리오 선택은 '새 시험'에 남김 */}
         <Panel title="새 시험" bodyClass="p-4">
           <Field label="시험 이름" htmlFor="exam-name">
             <input id="exam-name" value={name} onChange={(e) => setName(e.target.value)}

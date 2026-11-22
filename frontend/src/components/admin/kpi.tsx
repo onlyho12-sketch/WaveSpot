@@ -4,7 +4,8 @@ import type { ReactNode } from "react"
 import { Shape } from "@/components/ui/status"
 import { cn, type Tone } from "@/lib/utils"
 
-const VALUE_TONE: Partial<Record<Tone, string>> = { ok: "text-ok", warn: "text-warn", danger: "text-danger", off: "text-danger" }
+// 정상(ok)은 기본 글자색 · 색은 주의 · 위험에만
+const VALUE_TONE: Partial<Record<Tone, string>> = { warn: "text-warn", danger: "text-danger", off: "text-danger" }
 
 /** 초 → "2분 10초" */
 export const dur = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}분${s % 60 >= 1 ? ` ${Math.round(s % 60)}초` : ""}` : `${Math.round(s)}초`)
@@ -12,6 +13,18 @@ export const dur = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}분${s % 60 >
 /** 카드 큰 숫자용: 1분 이상이면 '분', 아니면 '초' (값이 없으면 -) */
 export const durParts = (s: number | null) =>
   s == null ? { value: "-" } : s >= 60 ? { value: String(Math.floor(s / 60)), unit: `분${s % 60 >= 1 ? ` ${Math.round(s % 60)}초` : ""}` } : { value: String(Math.round(s)), unit: "초" }
+
+/** '장애 및 복구' 카드의 지금 상태 · 훈련으로 넣은 장애(health.active)뿐 아니라
+ *  시나리오 · 실제로 생긴 장애(끝나지 않은 기록)도 '진행 중'으로 봄 → 1건인데 '장애 없음'이 뜨지 않게 */
+export function faultSummary(active: { title: string }[] | undefined, recs: { title: string; ended: number | null; recover_sec: number | null; started: number }[]) {
+  const ongoing = active?.[0]?.title ?? recs.find((f) => f.ended == null)?.title ?? null
+  const done = recs.filter((f) => f.ended != null)
+  const avg = done.length ? done.reduce((a, f) => a + (f.recover_sec ?? f.ended! - f.started), 0) / done.length : null
+  return {
+    tone: (ongoing ? "warn" : recs.length ? "neutral" : "ok") as Tone,
+    sub: ongoing ? `지금 ${ongoing}` : avg != null ? `${done.length}건 복구, 평균 ${dur(avg)}` : "장애 없음",
+  }
+}
 
 /** 상태 카드: 이름 · 큰 숫자 · 한 줄 · 작은 막대 · onOpen 이 있으면 눌러서 해당 탭으로 */
 export function Tile({ label, tone, value, unit, sub, small, children, onOpen }: {
@@ -40,8 +53,9 @@ export function Tile({ label, tone, value, unit, sub, small, children, onOpen }:
   )
 }
 
-/** 얇은 나눔 막대 (조각 사이 2px 틈) · 전체가 0이면 빈 칸 */
+/** 얇은 나눔 막대 (조각 사이 2px 틈) · 전체가 0이면 그리지 않음 (빈 막대는 장식일 뿐) */
 export function Meter({ parts, total, className }: { parts: { v: number; cls: string; label?: string }[]; total: number; className?: string }) {
+  if (total <= 0) return null
   const shown = parts.filter((p) => p.v > 0)
   return (
     <span className={cn("flex h-1.5 gap-[2px] overflow-hidden rounded-full bg-subtle", className)}>

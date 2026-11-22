@@ -82,8 +82,9 @@ let ws: WebSocket | null = null
 let sessionId: number | null = null
 
 async function reload() {
-  const [requests, events] = await Promise.all([api.requests().catch(() => []), api.events().catch(() => [])])
-  set({ requests: Object.fromEntries(requests.map((r) => [r.id, r])), events: events.reverse(), devices: [], handheld: {} })
+  // 확인 중인 기기도 함께 받아 옴 (다음 갱신까지 · 일시 정지 중에 '0대'로 보이지 않게)
+  const [requests, events, devices] = await Promise.all([api.requests().catch(() => []), api.events().catch(() => []), api.devices().catch(() => [])])
+  set({ requests: Object.fromEntries(requests.map((r) => [r.id, r])), events: events.reverse(), devices, handheld: {} })
 }
 
 function connect() {
