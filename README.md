@@ -92,7 +92,7 @@
 <table>
   <tr>
     <td width="50%" align="center"><img src="docs/images/tablet/04_monitor_watching.png" alt="감독 · 관찰 중"/><br/><b>⑤ 관찰 중</b><br/><sub>교실 안 새 신호 · 에이전트가 30초 더 지켜봄 (아직 조치 필요 없음)</sub></td>
-    <td width="50%" align="center"><img src="docs/images/tablet/05_monitor_request.png" alt="정밀 수색 요청"/><br/><b>⑥ 에이전트 감지 · 정밀 수색 요청</b><br/><sub>위험 점수 · 추정 위치 · 근거 2줄 · 1순위/2순위 범위</sub></td>
+    <td width="50%" align="center"><img src="docs/images/tablet/05_monitor_request.png" alt="수색 요청 2건 · 범위 메뉴"/><br/><b>⑥ 에이전트 감지 · 수색 요청</b><br/><sub>위험 점수 · 추정 위치 · 근거 2줄 · 범위 ⋮ 메뉴(휴대형 접근 · 근거 보기)</sub></td>
   </tr>
   <tr>
     <td align="center"><img src="docs/images/tablet/06_evidence_receivers.png" alt="근거 보기"/><br/><b>⑦ 근거 보기</b><br/><sub>대응 단계 · 신호원별 근거 · 이 기기의 시간순 기록</sub></td>
