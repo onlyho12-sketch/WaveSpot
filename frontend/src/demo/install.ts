@@ -13,15 +13,20 @@ function overlay() {
   el.style.cssText =
     "position:fixed;inset:0;z-index:9999;display:grid;place-items:center;padding:16px;background:#f4f6f9;font-family:Pretendard,system-ui,sans-serif;color:#0f172a;transition:opacity .3s"
   el.innerHTML = `
-    <div style="width:min(440px,100%);background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px 24px 20px;box-shadow:0 8px 24px rgba(15,23,42,.06)">
+    <div style="width:min(440px,100%);word-break:keep-all;background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:24px 24px 20px;box-shadow:0 8px 24px rgba(15,23,42,.06)">
       <div style="display:flex;align-items:center;gap:12px">
         <img src="/icon.png" alt="" width="40" height="40" style="border-radius:10px"/>
         <div>
           <div style="font-size:18px;font-weight:700">WaveSpot 시연 준비 중</div>
-          <div style="font-size:13px;color:#64748b;margin-top:2px">처음 한 번은 30초~1분 걸립니다. 다음부터는 더 빨라요</div>
+          <div style="font-size:13px;color:#64748b;margin-top:2px">20초 안팎, 잠시만 기다려 주세요</div>
         </div>
       </div>
-      <p style="font-size:14px;line-height:1.6;color:#334155;margin:16px 0 14px">현장 서버(에이전트와 AI 모델 6개)를 이 브라우저 안에서 그대로 실행합니다. 설치는 필요 없습니다.</p>
+      <dl style="margin:16px 0 14px;padding:10px 12px;background:#f4f6f9;border-radius:8px;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;font-size:13px;line-height:1.5">
+        <dt style="font-weight:700;color:#0f172a">시연판</dt>
+        <dd style="margin:0;color:#334155">현장 서버를 이 브라우저에 내려받는 중</dd>
+        <dt style="font-weight:700;color:#0f172a">실제 시험장</dt>
+        <dd style="margin:0;color:#334155">서버가 미리 켜져 있어 기다림 없음</dd>
+      </dl>
       <ol data-steps style="list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14px"></ol>
       <div data-err style="display:none;margin-top:14px;font-size:13px;color:#b91c1c;line-height:1.5"></div>
     </div>`

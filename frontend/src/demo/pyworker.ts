@@ -2,7 +2,8 @@
 // 웹 시연판: 현장 서버(backend/app · FastAPI · AI 에이전트 · 모델 6개)를 이 작업자 안 Pyodide 에서 그대로 실행.
 // 화면 -> /api 요청 · /api/ws 연결을 postMessage 로 받아 backend/app/webdemo.py 의 ASGI 어댑터에 넘김.
 const PYODIDE = "https://cdn.jsdelivr.net/pyodide/v0.28.3/full/"
-const PACKAGES = ["numpy", "scipy", "scikit-learn", "joblib", "sqlalchemy", "sqlite3", "pydantic", "micropip", "anyio", "sniffio", "idna", "annotated-types", "typing-extensions"]
+// micropip 없이 휠(순수 Python)을 바로 풀어 넣으므로 micropip 은 받지 않음
+const PACKAGES = ["numpy", "scipy", "scikit-learn", "joblib", "sqlalchemy", "sqlite3", "pydantic", "anyio", "sniffio", "idna", "annotated-types", "typing-extensions"]
 
 type Msg =
   | { type: "http"; id: number; method: string; path: string; query: string; headers: [string, string][]; body: ArrayBuffer | null }
@@ -18,19 +19,28 @@ const step = (n: number) => post({ type: "progress", step: n })
 
 async function boot() {
   step(1)
+  // 서버 코드 · 모델(app.zip)과 휠은 Python 실행 환경 · 라이브러리와 동시에 받음 (차례로 받으면 그만큼 더 기다림)
+  const base = new URL("/py/", self.location.origin).href
+  const get = (url: string) => fetch(url, { cache: "no-cache" }).then((r) => {
+    if (!r.ok) throw new Error(`${url} ${r.status}`)
+    return r.arrayBuffer()
+  })
+  const files = fetch(`${base}manifest.json`, { cache: "no-cache" }).then((r) => r.json()).then((man: { app: string; wheels: string[] }) =>
+    Promise.all([get(`${base}${man.app}`), ...man.wheels.map((w) => get(`${base}wheels/${w}`))]))
+  files.catch(() => {}) // 실패는 아래 await 에서 처리
   const { loadPyodide } = await import(/* @vite-ignore */ `${PYODIDE}pyodide.mjs`)
   py = await loadPyodide({ indexURL: PYODIDE })
   step(2)
   await py.loadPackage(PACKAGES, { messageCallback: () => {} })
   step(3)
-  const base = new URL("/py/", self.location.origin).href
-  const man = await (await fetch(`${base}manifest.json`, { cache: "no-cache" })).json()
-  const micropip = py.pyimport("micropip")
-  await micropip.install.callKwargs(man.wheels.map((w: string) => `${base}wheels/${w}`), { deps: false })
-  const zip = await (await fetch(`${base}${man.app}`, { cache: "no-cache" })).arrayBuffer()
+  const [zip, ...wheels] = await files
+  // 휠은 순수 Python zip 이라 site-packages 에 그대로 풀면 설치와 같음
+  const site: string = py.runPython("import site; site.getsitepackages()[0]")
+  for (const w of wheels) py.unpackArchive(w, "zip", { extractDir: site })
   py.unpackArchive(zip, "zip", { extractDir: "/home/pyodide/wavespot" })
   py.runPython(`
-import os, sys
+import importlib, os, sys
+importlib.invalidate_caches()
 sys.path.insert(0, "/home/pyodide/wavespot")
 os.environ["WAVESPOT_ARTIFACTS_DIR"] = "/home/pyodide/wavespot/artifacts"
 `)
