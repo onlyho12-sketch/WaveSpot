@@ -2,21 +2,19 @@
 // 감독관에게 필요한 것만: 기준점(교탁 · 출입문 · 감독관석), 표시된 범위 · 좌석, 고장 난 수신기
 // - 좌석은 시험장 책상처럼 모두 떨어져 있음 (앞뒤 간격이 옆 간격보다 조금 넓음 · 실제 교실 비율)
 // - 의심 범위는 줄 단위 네모가 아니라 원: 전파는 기기에서 둥글게 퍼지므로 추정 위치를 중심으로 한 원형 범위(ROI)
-//   번짐 · 퍼지는 고리 같은 효과 없이 테두리 + 옅은 단색만 (Bastille 평면도의 구역 테두리). 수색 = 실선, 2순위 · 관찰 = 점선
+//   움직이는 효과 없이 동심원 3겹(가운데가 가장 진함)으로 신호가 퍼지는 모양만. 맨 바깥 테두리 = 순회 범위, 수색 = 실선, 2순위 · 관찰 = 점선
 //   수신기가 빠지면 원을 한 단계 넓힘
 // 범위 이름 · 수신기 이름 · 범례는 화면에 나타난 것만 표시 · 표시된 범위는 ⋮ 메뉴
 import { Check, Radio, ScanSearch, X } from "lucide-react"
 import type { CSSProperties, ReactNode } from "react"
 import { Menu } from "@/components/ui/menu"
-import { cn } from "@/lib/utils"
+import { cn, rangeName, ROI_R, ROI_WIDE, ROW_RATIO, roiCenter } from "@/lib/utils"
 
 /** wide: 수신기 1대가 끊겨 위치가 덜 정확할 때 범위를 넓게 그림 */
 export type ZoneMark = { zone: number; kind: "request" | "candidate" | "watch"; label: string; wide?: boolean }
 export type SeatState = "suspect" | "probe" | "found" | "cleared"
 
-const ROW_RATIO = 1.3 // 앞뒤 간격 / 옆 간격
-const SEAT = 0.68 // 칸 너비 대비 좌석 크기 (나머지가 간격)
-const ROI = 2.8 // 원 지름 (좌석 칸 수) · 넓힘은 1.35배
+const SEAT = 0.68 // 칸 너비 대비 좌석 크기 (나머지가 간격) · 앞뒤 간격 / 옆 간격 = ROW_RATIO
 
 // line: 수색 범위만 실선 (2순위 · 관찰은 점선) · core: 원 안 단색 진하기(%)
 const TONE: Record<ZoneMark["kind"], { color: string; ring: string; line: string; text: string; core: number }> = {
@@ -25,12 +23,13 @@ const TONE: Record<ZoneMark["kind"], { color: string; ring: string; line: string
   watch: { color: "var(--color-warn-fill)", ring: "border-warn-fill/60", line: "border-[1.5px] border-dashed", text: "text-warn", core: 7 },
 }
 
-const fill = (k: ZoneMark["kind"]): CSSProperties => {
+/** 원 안 단색 · k: 진하기 배수 (동심원 안쪽일수록 큼) */
+const fill = (k: ZoneMark["kind"], mul = 1): CSSProperties => {
   const { color, core } = TONE[k]
-  return { background: `color-mix(in srgb, ${color} ${core}%, transparent)` }
+  return { background: `color-mix(in srgb, ${color} ${Math.round(core * mul)}%, transparent)` }
 }
 
-export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compact = false, selected = null, onSelect, selectable, zoneMenu, legend: showLegend = true }: {
+export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compact = false, selected = null, onSelect, selectable, zoneMenu, legend: showLegend = true, inRange }: {
   rows: number
   cols: number
   zones?: ZoneMark[]
@@ -42,8 +41,8 @@ export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compac
   selectable?: number[] // 누를 수 있는 좌석 (결과 입력)
   zoneMenu?: (zone: number) => ReactNode | null // 범위 ⋮ 메뉴 항목 · null 이면 메뉴 없음
   legend?: boolean // 범례 표시 (순회 경로 설정처럼 범위 표시 뜻이 다를 때 끔)
+  inRange?: number[] // 순회할 좌석 (원 안 좌석) · 테두리를 진하게
 }) {
-  const half = Math.ceil(cols / 2)
   const node = (id: string) => <Node id={id} ok={nodes[id] !== false} compact={compact} />
   // 같은 구역에 표시가 여러 개면 가장 중요한 것 하나만 (수색 > 2순위 > 관찰)
   const RANK = { request: 0, candidate: 1, watch: 2 } as const
@@ -60,15 +59,14 @@ export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compac
   if (states.has("found")) legend.push({ icon: <SeatChip state="found" />, label: "기기 발견" })
   if (states.has("cleared")) legend.push({ icon: <SeatChip state="cleared" />, label: "미발견" })
 
-  /** 구역(반쪽 줄 5석)의 가운데 = 원의 중심 (배치도 너비 · 높이 대비 %) */
+  /** 원의 중심 = 반쪽 줄 가운데 좌석 (배치도 너비 · 높이 대비 %) · 원 안에 중심이 드는 좌석이 순회 좌석 (utils rangeSeats) */
   const center = (z: number) => {
-    const r = Math.floor((z - 1) / 2)
-    const h = (z - 1) % 2
-    return { x: ((h * half + half / 2) / cols) * 100, y: ((r + 0.5) / rows) * 100 }
+    const { x, y } = roiCenter(z, cols)
+    return { x: (x / cols) * 100, y: (y / ROW_RATIO / rows) * 100 }
   }
   const roiBox = (m: ZoneMark): CSSProperties => {
     const { x, y } = center(m.zone)
-    const d = ((ROI * (m.wide ? 1.35 : 1)) / cols) * 100
+    const d = ((2 * ROI_R * (m.wide ? ROI_WIDE : 1)) / cols) * 100
     return { left: `${x}%`, top: `${y}%`, width: `${d}%` }
   }
 
@@ -96,9 +94,13 @@ export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compac
               {[...marks].reverse().map((m) => (
                 <div key={`f${m.zone}`} className="absolute aspect-square -translate-x-1/2 -translate-y-1/2 animate-roi-in transition-[width] duration-600 ease-[cubic-bezier(0.2,0.8,0.2,1)]"
                   style={roiBox(m)}>
-                  {/* 단계가 바뀌면(관찰 → 수색) 다시 그려서 한 번 커졌다 돌아옴 */}
-                  <div key={m.kind} className={cn("absolute inset-0 rounded-full", TONE[m.kind].line, TONE[m.kind].ring, m.kind === "request" && "animate-roi-bump")}
-                    style={fill(m.kind)} />
+                  {/* 단계가 바뀌면(관찰 → 수색) 다시 그려서 한 번 커졌다 돌아옴
+                      동심원 3겹: 추정 위치(가운데)가 가장 진하고 바깥으로 갈수록 옅어짐 = 신호가 퍼져 나가는 모양 · 맨 바깥 테두리가 순회 범위 */}
+                  <div key={m.kind} className={cn("absolute inset-0", m.kind === "request" && "animate-roi-bump")}>
+                    <div className={cn("absolute inset-0 rounded-full", TONE[m.kind].line, TONE[m.kind].ring)} style={fill(m.kind, 0.45)} />
+                    <div className={cn("absolute inset-[17%] rounded-full border", TONE[m.kind].ring, "opacity-50")} style={fill(m.kind, 0.7)} />
+                    <div className="absolute inset-[34%] rounded-full" style={fill(m.kind, 1.4)} />
+                  </div>
                 </div>
               ))}
             </div>
@@ -109,25 +111,26 @@ export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compac
                 const seat = i + 1
                 return (
                   <div key={seat} className="grid place-items-center" style={{ aspectRatio: `1 / ${ROW_RATIO}` }}>
-                    <Seat seat={seat} state={seats[seat]} compact={compact} selected={selected === seat}
+                    <Seat seat={seat} state={seats[seat]} compact={compact} selected={selected === seat} marked={inRange?.includes(seat)}
                       onClick={onSelect && (!selectable || selectable.includes(seat)) ? () => onSelect(seat) : undefined} />
                   </div>
                 )
               })}
             </div>
 
-            {/* 3층: 범위 이름 · ⋮ 메뉴 — 좌석을 가리지 않도록 그 줄 바로 위 통로(줄 사이 빈칸)에 둠 */}
+            {/* 3층: 범위 이름 · ⋮ 메뉴 — 좌석을 가리지 않도록 그 줄 바로 위 통로(줄 사이 빈칸)에 둠
+                라벨마다 쌓임 맥락이 따로 생기므로, 메뉴를 연 라벨만 위로 올려 다른 구역 라벨이 펼친 메뉴를 가리지 않게 함 */}
             {marks.map((m) => {
               const menu = zoneMenu?.(m.zone)
               const r = Math.floor((m.zone - 1) / 2)
               return (
-                <div key={`l${m.zone}`} className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 animate-label-in items-center gap-0.5"
+                <div key={`l${m.zone}`} className="absolute z-10 flex -translate-x-1/2 -translate-y-1/2 animate-label-in items-center gap-0.5 has-[[aria-expanded=true]]:z-30"
                   style={{ left: `${center(m.zone).x}%`, top: `${(r / rows) * 100}%` }}>
                   <span className={cn("num max-w-40 truncate rounded-full border bg-surface px-2 font-semibold whitespace-nowrap",
                     compact ? "py-px text-fs10" : "py-0.5 text-xs", TONE[m.kind].text, TONE[m.kind].ring)}>
                     {m.label}
                   </span>
-                  {menu && <Menu label={`${m.zone}구역 메뉴`} className="rounded-md bg-surface">{menu}</Menu>}
+                  {menu && <Menu label={`${rangeName(m.zone, cols)} 메뉴`} className="rounded-md bg-surface">{menu}</Menu>}
                 </div>
               )
             })}
@@ -149,7 +152,7 @@ export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compac
   )
 }
 
-function Seat({ seat, state, compact, selected, onClick }: { seat: number; state?: SeatState; compact: boolean; selected: boolean; onClick?: () => void }) {
+function Seat({ seat, state, compact, selected, marked, onClick }: { seat: number; state?: SeatState; compact: boolean; selected: boolean; marked?: boolean; onClick?: () => void }) {
   const Comp = onClick ? "button" : "div"
   return (
     <Comp type={onClick ? "button" : undefined} onClick={onClick} aria-pressed={onClick ? selected : undefined}
@@ -157,7 +160,7 @@ function Seat({ seat, state, compact, selected, onClick }: { seat: number; state
       className={cn(
         "relative grid aspect-square place-items-center border num font-semibold transition-colors",
         compact ? "rounded text-fs11" : "rounded-md text-sm",
-        !state && "border-line-strong bg-surface text-fg-2",
+        !state && (marked ? "border-fg bg-surface font-bold text-fg" : "border-line-strong bg-surface text-fg-2"),
         state === "suspect" && "animate-pop border-danger bg-danger text-white",
         state === "probe" && "border-brand bg-brand-soft text-brand ring-2 ring-brand ring-offset-1",
         state === "found" && "animate-pop border-fg bg-fg text-surface",

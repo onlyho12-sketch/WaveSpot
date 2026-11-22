@@ -18,6 +18,7 @@ from app.agent.agent import Agent, clock
 from app.agent.kinds import SECOND_SEARCH_PARTS
 from app.core.config import settings
 from app.core.db import engine as db
+from app.ml.features import range_name, range_seats
 from app.ml.sim import NODES
 from app.models import AccessLog, AgentEvent, AllowedDevice, AttackRun, ExamSession, FaultRecord, SearchRequest
 from app.realtime.hub import hub
@@ -43,7 +44,7 @@ def impossible(rssi: dict[str, float]) -> str | None:
         return f"{', '.join(strong)} {max(rssi.values()):.0f} dBm (천장 수신기에서 나올 수 없는 세기)"
     for a, b in (("R1", "R4"), ("R2", "R3")):
         if rssi.get(a, -100) > -70 and rssi.get(b, -100) > -70:
-            return f"대각선 {a}와 {b}가 함께 {rssi[a]:.0f} / {rssi[b]:.0f} dBm (한 기기에서 동시에 나올 수 없음)"
+            return f"대각선 수신기 {a}, {b}에서 동시에 {rssi[a]:.0f} / {rssi[b]:.0f} dBm (한 기기에서 동시에 나올 수 없음)"
     return None
 
 
@@ -142,13 +143,14 @@ class Engine:
             v.update(status=st, last_seen=datetime.now().isoformat() if n in ok else v["last_seen"])
         return changed
 
-    def new_session(self, name: str, scenario: str, rows: int, cols: int) -> ExamSession:
+    def new_session(self, name: str, scenario: str, rows: int, cols: int, date: str = "", start: str = "09:00", place: str = "", duration: int = 40) -> ExamSession:
         self.stop()
         with Session(db) as s:
             for old in s.exec(select(ExamSession).where(ExamSession.state != "ended")):
                 old.state = "ended"
                 s.add(old)
-            sess = ExamSession(name=name, scenario=scenario if scenario in SCENARIOS else "demo", rows=rows, cols=cols)
+            sess = ExamSession(name=name, scenario=scenario if scenario in SCENARIOS else "demo", rows=rows, cols=cols,
+                               exam_date=date, place=place, exam_start_label=start, duration_min=duration)
             s.add(sess)
             s.commit()
             s.refresh(sess)
@@ -238,7 +240,7 @@ class Engine:
         buf = WindowBuffer()
         end = self.session.duration_min * 60
         win = settings.window_seconds
-        await self.agent.log(self.t, "준비", "시험 시작, 수신기 4대로 교실 전체 감시 중 (녹화 재생, 근거 기반 모의 데이터)")
+        await self.agent.log(self.t, "준비", "시험 시작, 수신기 4대로 교실 전체 신호 감지 중")
         while self.t < end:
             if self.paused:
                 await asyncio.sleep(0.2)
@@ -352,7 +354,7 @@ class Engine:
         tr = self.agent.tracks.get(req.device_id)
         route = [z for z in dict.fromkeys(zones or []) if 1 <= z <= 8]
         if route:
-            await self.agent.log(self.t, "수색", f"휴대형 순회 시작 (감독관이 정한 경로), {' → '.join(f'{z}구역' for z in route)}, 좌석마다 {dwell}초",
+            await self.agent.log(self.t, "수색", f"휴대형 순회 시작 (감독관이 정한 경로), {' → '.join(range_name(z) for z in route)}, 좌석마다 {dwell}초",
                                  "caution", req.device_id)
             if self.replay and tr and (self.walk_task is None or self.walk_task.done()):
                 walked = sorted(set((req.walk or {}).get("zones", []))) if req.level == 4 else None
@@ -363,13 +365,13 @@ class Engine:
             probs = tr.loc.zone_probs if tr and tr.loc else {}
             rest = sorted((z for z in range(1, 9) if z not in walked), key=lambda z: -probs.get(z, 0.0))
             zones = rest[:2]
-            await self.agent.log(self.t, "수색", f"2차 휴대형 순회, 아직 안 돈 구역 중 가능성 높은 순 {' → '.join(f'{z}구역' for z in zones)}",
+            await self.agent.log(self.t, "수색", f"2차 휴대형 순회, 아직 안 돈 범위 중 가능성 높은 순 {' → '.join(range_name(z) for z in zones)}",
                                  "caution", req.device_id)
             if self.replay and tr and (self.walk_task is None or self.walk_task.done()):
                 self.walk_task = asyncio.create_task(self._walk(req, tr.addr, zones, sorted(walked)))
         elif req.level == 2 or req.suspect_seat is None or again:
             zones = [req.zone] + ([req.zone2] if req.zone2 else [])
-            await self.agent.log(self.t, "수색", f"휴대형 순회 {'다시 ' if again else ''}시작, {' → '.join(f'{z}구역' for z in zones)}, 좌석마다 2초",
+            await self.agent.log(self.t, "수색", f"휴대형 순회 {'다시 ' if again else ''}시작, {' → '.join(range_name(z) for z in zones)}, 좌석마다 2초",
                                  "caution", req.device_id)
             if self.replay and tr and (self.walk_task is None or self.walk_task.done()):
                 self.walk_task = asyncio.create_task(self._walk(req, tr.addr, zones))
@@ -391,11 +393,23 @@ class Engine:
     async def _walk_run(self, req: SearchRequest, addr: str, zones: list[int], walked_before: list[int] | None = None, dwell: int = 2) -> None:
         """재생 모드 휴대형 순회 (v10 검증 ⑤ 모의). 실기기에선 wavespot/handheld/... 로 수신."""
         assert self.replay
-        from app.ml.features import seats_of_zone
 
-        result: dict[str, Any] = {}
-        for zi, z in enumerate(zones):
-            for step in self.replay.walk(seats_of_zone(z), addr, dwell):
+        # 2차 순회(이미 돈 구역이 있음)는 앞 순회 측정값과 합쳐 좌석별 최댓값으로 순위를 정함
+        # (새 구역만 보면 그중 가장 강한 좌석이 의심 좌석이 되어, 앞서 훨씬 강했던 좌석이 순위에서 사라짐)
+        before = (req.walk or {}).get("seat_medians") or {} if walked_before else {}
+        result: dict[int, float] = {int(k): float(v) for k, v in before.items()}  # 저장값은 문자열 키 → 좌석 번호로 맞춤
+        # 범위(원)끼리 겹치는 좌석은 한 번만 돎 · 새로 돌 좌석이 없는 범위는 건너뜀
+        wide = self.health()["mode"] == "degraded"
+        seen: set[int] = set()
+        plan: list[tuple[int, list[int]]] = []
+        for z in zones:
+            seats = [s for s in range_seats(z, wide) if s not in seen]
+            seen.update(seats)
+            if seats:
+                plan.append((z, seats))
+        zones = [z for z, _ in plan]
+        for zi, (z, seats) in enumerate(plan):
+            for step in self.replay.walk(seats, addr, dwell):
                 if step.get("done"):
                     for k, v in step["seat_medians"].items():
                         result[k] = max(result.get(k, -999.0), v)
@@ -415,7 +429,7 @@ class Engine:
             s.commit()
             s.refresh(r)
         await hub.send("handheld", {"request_id": req.id, "done": True, "best_seat": best, "seat_medians": result})
-        await self.agent.log(self.t, "수색", f"휴대형 순회 끝, 신호가 가장 강했던 좌석 {best}번 → {'정밀 수색 대상' if r.level >= 3 else '위험 점수가 기준 이상으로 30초 계속되면 정밀 수색 요청'}",
+        await self.agent.log(self.t, "수색", f"휴대형 순회 끝, 신호가 가장 강했던 좌석 {best}번 → {'정밀 수색 대상' if r.level >= 3 else '정밀 수색이 필요하면 다시 알림'}",
                              "caution", req.device_id, {"seat_medians": {str(k): v for k, v in result.items()}})
         await hub.send("request", r.model_dump(mode="json"))
 
@@ -471,7 +485,7 @@ class Engine:
     def clock_payload(self) -> dict[str, Any]:
         s = self.session
         return {"t": self.t, "clock": clock(max(self.t, 0), s.exam_start_label if s else "09:00"),
-                "minute": int(max(self.t, 0) // 60), "duration_min": s.duration_min if s else 100,
+                "minute": int(max(self.t, 0) // 60), "duration_min": s.duration_min if s else 40,
                 "state": s.state if s else "setup", "paused": self.paused, "speed": self.speed}
 
     def status(self) -> dict[str, Any]:
@@ -495,7 +509,7 @@ class Engine:
 
     # ---------- 자가 점검 · 장애 대응 (v11 10장) ----------
     def selfcheck(self) -> list[dict[str, Any]]:
-        """시험 시작 전 자가 점검. ok=False 가 하나라도 있으면 '감시 시작' 불가. ok=None 은 보고 없음 (막지 않음)."""
+        """시험 시작 전 자가 점검. ok=False 가 하나라도 있으면 '감지 시작' 불가. ok=None 은 보고 없음 (막지 않음)."""
         nodes = [self.nodes.get(n, {}) for n in NODES]
         online = sum(1 for v in nodes if v.get("status") == "online")
         skews = [v["skew_ms"] for v in nodes if v.get("skew_ms") is not None]
@@ -611,10 +625,10 @@ class Engine:
             await self.agent.log(t, "장비", f"현장 서버 재시작 감지, 자동 재시작 중, 마지막 저장 상태({when})로 이어서 판단", "alert")
         elif kind == "model":
             self.agent.locator.broken = True
-            await self.agent.log(t, "장비", "위치 모델 출력 이상 (범위, 결측 검사 실패), 이 모델만 건너뛰고 규칙 점수로 판단", "caution",
+            await self.agent.log(t, "장비", "위치 모델 출력 이상 (값이 정상 범위를 벗어남), 이 모델만 건너뛰고 규칙으로 위치 계산", "caution",
                                  data={"calls": [], "skipped": ["위치"]})
         elif kind == "network":
-            await self.agent.log(t, "장비", "시험장 망 끊김, 수신기와 서버 연결 상실 → 감시 중단, 수동 감독 모드, 수신기는 자체 저장 공간에 계속 기록", "alert")
+            await self.agent.log(t, "장비", "시험장 망 끊김, 수신기와 서버 연결 상실 → 감지 중단, 수동 감독 모드, 수신기는 자체 저장 공간에 계속 기록", "alert")
         elif kind == "beacon":
             self.beacon_ok = False
             await self.agent.log(t, "장비", "기준 비콘 세기 급변, 세기 보정 정지, 직전 보정값으로 계속 판단", "caution")
@@ -626,7 +640,7 @@ class Engine:
         elif kind == "app":
             a.until = None
             self.app_started = time.monotonic()
-            await self.agent.log(t, "장비", "감독관 앱 연결 끊김 (WebSocket 응답 없음), 자동 재연결 중, 그동안 휴대형 수신기 진동과 LED로 알림", "caution")
+            await self.agent.log(t, "장비", "감독관 앱 연결 끊김, 자동 재연결 중, 그동안 휴대형 수신기 LED로 알림", "caution")
             await hub.drop_all(spec.dur)
         await self.broadcast_status()
 
@@ -652,10 +666,10 @@ class Engine:
                 await self.agent.log(self.t, "장비", f"현장 서버 복구, {took:.0f}초 (목표 30초 이내), 수신기가 보관한 측정값 {a.resent}건 재전송받아 이어서 판단", "info")
             elif kind == "model":
                 self.agent.locator.broken = False
-                await self.agent.log(self.t, "장비", "위치 모델 다시 불러옴, AI 판단으로 복귀", "info")
+                await self.agent.log(self.t, "장비", "위치 모델 다시 불러옴, AI 모델 판단으로 복귀", "info")
             elif kind == "network":
                 stored, self.local_store = self.local_store, 0
-                await self.agent.log(self.t, "장비", f"시험장 망 복구, 감시 재개, 수신기 자체 저장분 {stored}건 동기화 → 사후 리포트에 반영", "info")
+                await self.agent.log(self.t, "장비", f"시험장 망 복구, 감지 재개, 수신기 자체 저장분 {stored}건 동기화 → 사후 리포트에 반영", "info")
             elif kind == "beacon":
                 self.beacon_ok = True
                 await self.agent.log(self.t, "장비", "기준 비콘 정상, 세기 보정 다시 시작", "info")

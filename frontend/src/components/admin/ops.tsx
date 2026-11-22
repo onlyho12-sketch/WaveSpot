@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button"
 import { Panel, Shape, Status, Tag } from "@/components/ui/status"
 import { api, getRole, ROLE_NAME, type AttackSpec, type Role, type Status as LiveStatus } from "@/lib/api"
 import { patchStatus, useLive } from "@/lib/live"
+import { ROLE_DESC } from "@/lib/roles"
 import { cn, type Tone } from "@/lib/utils"
 
 /** 단계적 축소 단계 (v11 10장) */
@@ -19,14 +20,14 @@ export const MODE: Record<string, { label: string; short: string; tone: Tone; de
   normal: { label: "정상", short: "정상", tone: "ok", desc: "수신기 4대와 AI 모델로 판단" },
   degraded: { label: "수신기 3대로 판단", short: "수신기 3대", tone: "warn", desc: "3대용 위치 모델 (범위를 넓게 표시)" },
   no_location: { label: "위치 추정 중지", short: "위치 추정 중지", tone: "danger", desc: "반입 금지 기기 여부만 판단하고 휴대형으로 순회" },
-  manual: { label: "감시 중단", short: "감시 중단", tone: "danger", desc: "망 끊김. 수신기에 자체 저장하고 수동 감독" },
+  manual: { label: "감지 중단", short: "감지 중단", tone: "danger", desc: "망 끊김. 수신기에 자체 저장하고 수동 감독" },
   recovering: { label: "복구 중", short: "복구 중", tone: "warn", desc: "서버 재시작 후 저장된 상태로 이어서 판단" },
 }
 const RING: Record<Tone, string> = {
-  ok: "border-line-strong bg-subtle", warn: "border-warn-fill bg-warn-soft", danger: "border-danger bg-danger-soft",
+  ok: "border-ok bg-ok-soft", warn: "border-warn-fill bg-warn-soft", danger: "border-danger bg-danger-soft",
   off: "border-danger bg-danger-soft", neutral: "border-line-strong bg-subtle", brand: "border-brand bg-brand-soft",
 }
-const LADDER_NAME = ["감시", "추가 관찰", "휴대형 접근", "정밀 수색", "2차 수색"]
+const LADDER_NAME = ["이상 없음", "추가 관찰", "휴대형 접근", "정밀 수색", "2차 수색"]
 /** "짧게 끊어 보내기 (기준 점수 바로 아래로 유지)" → 제목 · 괄호 속 보조 설명 */
 const splitTitle = (t: string) => {
   const i = t.indexOf(" (")
@@ -59,7 +60,7 @@ export function FaultsTab() {
   const running = status?.session?.state === "running"
   const isAdmin = getRole() === "admin"
   const start = status?.session?.exam_start_label ?? "09:00"
-  const duration = status?.session?.duration_min ?? clock?.duration_min ?? 100
+  const duration = status?.session?.duration_min ?? clock?.duration_min ?? 40
   const now = Math.max(clock?.t ?? 0, 0)
 
   const recs = faults.data?.records ?? []
@@ -76,10 +77,11 @@ export function FaultsTab() {
   if (modeKey === "no_location") activeKinds.add("node2")
   const canFault = !!faults.data?.can_inject && running && isAdmin
   const canAttack = !!a?.can_inject && isAdmin
-  const hintText = !isAdmin ? "모의 훈련은 관리자 역할만 (시스템 탭에서 바꿈)" : !running ? "모의 훈련은 시험 중에만" : null
+  // 관리자가 아니면 훈련 버튼 자체를 숨기므로 안내도 없음
+  const hintText = isAdmin && !running ? "모의 훈련은 시험 중에만" : null
   // 휴대폰은 제목이 꺾이지 않게 짧게
   const hint = hintText && (
-    <span><span className="medium:hidden">{isAdmin ? "시험 중에만 훈련" : "관리자만 훈련"}</span><span className="hidden medium:inline">{hintText}</span></span>
+    <span><span className="medium:hidden">시험 중에만 훈련</span><span className="hidden medium:inline">{hintText}</span></span>
   )
 
   async function run(key: string, fn: () => Promise<unknown>) {
@@ -118,14 +120,14 @@ export function FaultsTab() {
       <div className="grid grid-cols-2 gap-3 medium:gap-4 large:grid-cols-4">
         <Tile label="장애 및 복구" tone={faultSummary(h?.active, recs).tone} value={String(recs.length)} unit="건"
           sub={faultSummary(h?.active, recs).sub}>
-          <Meter parts={[{ v: recovered.length, cls: "bg-fg-3/45", label: "복구" }, { v: recs.length - recovered.length, cls: "bg-warn-fill", label: "진행 중" }]} total={recs.length} />
+          <Meter parts={[{ v: recovered.length, cls: "bg-ok", label: "복구" }, { v: recs.length - recovered.length, cls: "bg-warn-fill", label: "진행 중" }]} total={recs.length} />
         </Tile>
         <Tile label="놓친 측정값" tone={missed > 0 ? "warn" : "ok"} value={missed.toLocaleString()} unit="건"
           sub={missed > 0 ? "수신기에 저장 후 동기화해 사후 반영" : "실시간 판단에서 빠진 값 없음"} />
         <Tile label="모의 공격 탐지" tone={injected.length && caught.length < injected.length ? "warn" : "ok"}
           value={injected.length ? `${caught.length}/${injected.length}` : "0"} unit={injected.length ? undefined : "건"}
           sub={avgTook != null ? `평균 ${dur(avgTook)} 만에 탐지` : `훈련 없음, 실제 탐지 ${runs.length - injected.length}건`}>
-          <Meter parts={[{ v: caught.length, cls: "bg-fg-3/45", label: "탐지" }, { v: injected.length - caught.length, cls: "bg-warn-fill", label: "미탐지" }]} total={injected.length} />
+          <Meter parts={[{ v: caught.length, cls: "bg-ok", label: "탐지" }, { v: injected.length - caught.length, cls: "bg-warn-fill", label: "미탐지" }]} total={injected.length} />
         </Tile>
         <Tile label="거부한 측정값" tone={(a?.rejected ?? 0) > 0 ? "warn" : "ok"} value={(a?.rejected ?? 0).toLocaleString()} unit="건"
           sub="등록 안 된 수신기나 불가능한 세기 조합" />
@@ -231,7 +233,7 @@ export function FaultsTab() {
                 </Fold>
                 <div className="mt-auto flex flex-wrap items-center gap-x-2 gap-y-2.5 pt-3">
                   <span className="flex items-start gap-1.5 text-fs14 leading-snug text-fg-2"><Clock className="mt-0.5 size-4 shrink-0" /><span>복구 목표 {c.target}</span></span>
-                  {faults.data?.can_inject && (
+                  {faults.data?.can_inject && isAdmin && (
                     <Button variant="secondary" className="ml-auto shrink-0" disabled={!canFault || on || busy != null}
                       onClick={() => run(c.kind, async () => patchStatus(await api.inject(c.kind)))}>
                       <Zap />{on ? "진행 중" : "훈련 시작"}
@@ -246,14 +248,17 @@ export function FaultsTab() {
 
       <Panel title="공격 대응" aside={hint}>
         <div className="border-b border-line p-4">
-          <dl className="grid grid-cols-1 gap-2 text-fs16 medium:grid-cols-2">
+          <dl className={cn("grid grid-cols-1 gap-2 text-fs16", a?.thresholds && "medium:grid-cols-2")}>
+            {/* 기준 점수는 관리자에게만 내려옴 · 다른 역할에는 줄 자체를 두지 않음 */}
+            {a?.thresholds && (
+              <div className="rounded-md bg-subtle px-4 py-2.5">
+                <dt className="text-fs13 font-semibold text-fg-3">이번 시험 기준 점수</dt>
+                <dd className="num mt-0.5 font-semibold">수색 {a.thresholds.request}, 관찰 {a.thresholds.caution}점</dd>
+              </div>
+            )}
             <div className="rounded-md bg-subtle px-4 py-2.5">
-              <dt className="text-fs13 font-semibold text-fg-3">이번 시험 기준 점수</dt>
-              <dd className="num mt-0.5 font-semibold">{a?.thresholds ? `수색 ${a.thresholds.request}, 관찰 ${a.thresholds.caution}점` : "비공개 (관리자만)"}</dd>
-            </div>
-            <div className="rounded-md bg-subtle px-4 py-2.5">
-              <dt className="text-fs13 font-semibold text-fg-3">허용 기기 입실 전 세기 패턴</dt>
-              <dd className="num mt-0.5 font-semibold">{a?.fingerprints ?? 0}대 대조 중</dd>
+              <dt className="text-fs13 font-semibold text-fg-3">허용 기기 자리 확인</dt>
+              <dd className="num mt-0.5 font-semibold">{a?.fingerprints ?? 0}대</dd>
             </div>
           </dl>
         </div>
@@ -282,7 +287,7 @@ export function FaultsTab() {
                       <Def k="대응">{c.response}</Def>
                       {c.limit && c.limit !== "-" && <Def k="한계">{c.limit}</Def>}
                     </Fold>
-                    {c.replay && (
+                    {c.replay && isAdmin && (
                       <Button variant="secondary" className="mt-auto self-start" disabled={!canAttack || busy != null}
                         onClick={() => run(c.kind, () => api.injectAttack(c.kind))}>
                         <Swords />{ran.length ? `다시 훈련 (${ran.length})` : "훈련 시작"}
@@ -324,7 +329,8 @@ const NODE_IDS = ["R1", "R2", "R3", "R4"] as const
 const NODE_AT: Record<string, string> = { R1: "앞 왼쪽", R2: "앞 오른쪽", R3: "뒤 왼쪽", R4: "뒤 오른쪽" }
 const CORNER: Record<string, string> = { R1: "top-2 left-2", R2: "top-2 right-2", R3: "bottom-2 left-2", R4: "bottom-2 right-2" }
 
-export function RoomEquipment({ status }: { status: LiveStatus | null }) {
+/** detail=false(검토자): 실시간 수치(받은 신호 · 감지된 기기 · 시계 차 · 마지막 수신) 없이 정상/응답 없음만 */
+export function RoomEquipment({ status, detail = true }: { status: LiveStatus | null; detail?: boolean }) {
   const nodes = status?.nodes ?? []
   const node = (id: string) => nodes.find((n) => n.node_id === id)
   const beacon = status?.health?.beacon === "frozen" ? { tone: "warn" as Tone, text: "보정 정지" } : status?.beacon_ok ? { tone: "ok" as Tone, text: "실시간 보정" } : { tone: "off" as Tone, text: "끊김" }
@@ -363,7 +369,7 @@ export function RoomEquipment({ status }: { status: LiveStatus | null }) {
           const ok = node(id)?.status === "online"
           return (
             <span key={id} className={cn("absolute flex items-center gap-1 rounded-full border-[1.5px] px-2 py-0.5 text-fs13 font-bold", CORNER[id],
-              ok ? "border-line-strong bg-subtle text-fg-2" : "border-dashed border-danger bg-danger-soft text-danger")}>
+              ok ? "border-ok bg-ok-soft text-ok" : "border-dashed border-danger bg-danger-soft text-danger")}>
               {ok ? <Radio className="size-3.5" /> : <X className="size-3.5" strokeWidth={3} />}{id}
             </span>
           )
@@ -372,15 +378,19 @@ export function RoomEquipment({ status }: { status: LiveStatus | null }) {
 
       {/* 수신기 상태 */}
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[520px] text-fs14">
+        <table className={cn("w-full text-fs14", detail && "min-w-[520px]")}>
           <thead className="border-b border-line text-left text-fs13 text-fg-3">
             <tr>
               <th className="py-2 pr-3 font-semibold">천장 수신기</th>
               <th className="py-2 pr-3 font-semibold">상태</th>
-              <th className="py-2 pr-3 text-right font-semibold">받은 신호</th>
-              <th className="py-2 pr-3 text-right font-semibold">감지된 기기</th>
-              <th className="py-2 pr-3 text-right font-semibold">시계 차</th>
-              <th className="py-2 text-right font-semibold">마지막 수신</th>
+              {detail && (
+                <>
+                  <th className="py-2 pr-3 text-right font-semibold">받은 신호</th>
+                  <th className="py-2 pr-3 text-right font-semibold">감지된 기기</th>
+                  <th className="py-2 pr-3 text-right font-semibold">시계 차</th>
+                  <th className="py-2 text-right font-semibold">마지막 수신</th>
+                </>
+              )}
             </tr>
           </thead>
           <tbody className="divide-y divide-line">
@@ -393,17 +403,21 @@ export function RoomEquipment({ status }: { status: LiveStatus | null }) {
                   <td className="py-2 pr-3">
                     <Status tone={ok ? "ok" : "off"}><span className={cn(!ok && "font-semibold text-danger")}>{ok ? "정상" : "응답 없음"}</span></Status>
                   </td>
-                  <td className="num py-2 pr-3 text-right">{ok && n?.rate != null ? `${n.rate}건/초` : "-"}</td>
-                  <td className="num py-2 pr-3 text-right">{ok ? `${n?.heard ?? "-"}대` : "-"}</td>
-                  <td className={cn("num py-2 pr-3 text-right", (n?.skew_ms ?? 0) > 200 && "font-semibold text-danger")}>{ok && n?.skew_ms != null ? `${n.skew_ms}ms` : "-"}</td>
-                  <td className="num py-2 text-right text-fg-2" title={n?.last_seen ?? undefined}>{n?.last_seen ? ago(n.last_seen) : "-"}</td>
+                  {detail && (
+                    <>
+                      <td className="num py-2 pr-3 text-right">{ok && n?.rate != null ? `${n.rate}건/초` : "-"}</td>
+                      <td className="num py-2 pr-3 text-right">{ok ? `${n?.heard ?? "-"}대` : "-"}</td>
+                      <td className={cn("num py-2 pr-3 text-right", (n?.skew_ms ?? 0) > 200 && "font-semibold text-danger")}>{ok && n?.skew_ms != null ? `${n.skew_ms}ms` : "-"}</td>
+                      <td className="num py-2 text-right text-fg-2" title={n?.last_seen ?? undefined}>{n?.last_seen ? ago(n.last_seen) : "-"}</td>
+                    </>
+                  )}
                 </tr>
               )
             })}
           </tbody>
         </table>
       </div>
-      <p className="mt-2 text-xs text-fg-3">감지된 기기: 최근 10초 동안 이 수신기에 신호가 들어온 기기 수</p>
+      {detail && <p className="mt-2 text-xs text-fg-3">감지된 기기: 최근 10초 동안 이 수신기에 신호가 들어온 기기 수</p>}
     </div>
   )
 }
@@ -423,12 +437,12 @@ export function SelfCheckList({ status }: { status: LiveStatus | null }) {
       <div className="flex items-center gap-3 border-b border-line px-4 py-3">
         <span className="num text-fs22 leading-none font-bold">{ok}<span className="text-fs15 text-fg-3">/{items.length}</span></span>
         <span className="text-fs13 font-semibold text-fg-2">통과</span>
-        <Meter className="ml-auto w-32" total={items.length} parts={[{ v: ok, cls: "bg-fg-3/45" }, { v: items.filter((i) => i.ok === false).length, cls: "bg-danger" }]} />
+        <Meter className="ml-auto w-32" total={items.length} parts={[{ v: ok, cls: "bg-ok" }, { v: items.filter((i) => i.ok === false).length, cls: "bg-danger" }]} />
       </div>
       <ul className="divide-y divide-line text-sm">
         {items.map((i) => (
           <li key={i.key} className="flex items-center gap-2.5 px-4 py-2.5">
-            <span className={cn("grid size-5 shrink-0 place-items-center rounded-full", i.ok ? "bg-fg/[0.08] text-fg-2" : i.ok === false ? "bg-danger text-white" : "bg-subtle text-fg-3")}>
+            <span className={cn("grid size-5 shrink-0 place-items-center rounded-full", i.ok ? "bg-ok text-white" : i.ok === false ? "bg-danger text-white" : "bg-subtle text-fg-3")}>
               {i.ok ? <Check className="size-3" strokeWidth={3.5} /> : i.ok === false ? <X className="size-3" strokeWidth={3.5} /> : <Minus className="size-3" />}
             </span>
             <span className="font-semibold">{i.label}</span>
@@ -440,14 +454,10 @@ export function SelfCheckList({ status }: { status: LiveStatus | null }) {
   )
 }
 
-const ROLE_DESC: Record<Role, string> = {
-  supervisor: "교실에서 시험을 진행하는 사람. 감독, 순회, 수색 결과 입력",
-  admin: "시험장 시스템과 장비 담당. 설정과 모의 훈련 (시험 중 기준값은 잠김)",
-  auditor: "시험 후 이의 제기와 판정을 검토하는 제3자. 열람만 가능",
-}
 
 const PERMS: { what: string; roles: Record<Role, boolean> }[] = [
-  { what: "감독, 순회, 결과 입력", roles: { supervisor: true, admin: true, auditor: false } },
+  { what: "감독 화면 보기", roles: { supervisor: true, admin: true, auditor: false } },
+  { what: "순회, 수색 결과, 감독관 의견 입력", roles: { supervisor: true, admin: false, auditor: false } },
   { what: "시험 준비와 시작", roles: { supervisor: true, admin: true, auditor: false } },
   { what: "모의 훈련과 설정", roles: { supervisor: false, admin: true, auditor: false } },
   { what: "리포트 열람과 내보내기", roles: { supervisor: true, admin: true, auditor: true } },
@@ -459,15 +469,16 @@ export function SecurityBoard({ status, role, aside }: { status: LiveStatus | nu
   const nodes = status?.nodes ?? []
   const cert = nodes.filter((n) => n.cert_ok).length
   const fw = nodes.filter((n) => n.fw_ok).length
-  const locked = status?.health?.locked ?? false
+  // 시험이 끝난 뒤에도 그 시험의 허용 목록은 확정된 것 ('등록 중'으로 되돌아가 보이지 않게)
+  const locked = (status?.health?.locked ?? false) || status?.session?.state === "ended"
   const total = nodes.length || 4
   const items: { icon: ReactNode; title: string; desc: string; tone: Tone }[] = [
     { icon: <Globe />, title: "외부 연결 없음", desc: "시험장 내부망에서만 동작", tone: "ok" },
     { icon: <BadgeCheck />, title: `수신기 인증서 ${cert}/${total}`, desc: "인증서 없는 수신기 데이터는 거부", tone: cert === total ? "ok" : "warn" },
     { icon: <Cpu />, title: `펌웨어 서명 ${fw}/${total}`, desc: "서명된 펌웨어만 설치", tone: fw === total ? "ok" : "warn" },
-    { icon: <Lock />, title: locked ? "허용 목록 잠금" : "허용 목록 등록 중", desc: locked ? "시험 중 변경 시도는 거부로 기록" : "입실 전 기준선에서만 등록", tone: locked ? "ok" : "neutral" },
+    { icon: <Lock />, title: locked ? "허용 목록 잠금" : "허용 목록 등록 중", desc: locked ? "시험 중 변경 시도는 거부로 기록" : "수험생 입실 전에만 등록", tone: locked ? "ok" : "neutral" },
     { icon: <EyeOff />, title: "기준값 비공개", desc: "기준값, 가중치, 허용 목록, 해시 키", tone: "ok" },
-    { icon: <KeyRound />, title: "관리자 2단계 인증", desc: "실기기 단계에서 적용 (지금은 역할 전환)", tone: "neutral" },
+    { icon: <KeyRound />, title: "역할별 계정", desc: "감독관, 관리자, 검토자 계정을 나눠 할 수 있는 일을 제한", tone: "ok" },
   ]
   return (
     <Panel title="보안 및 권한" aside={aside}>
@@ -476,7 +487,7 @@ export function SecurityBoard({ status, role, aside }: { status: LiveStatus | nu
           {items.map((i) => (
             <li key={i.title} className="flex items-start gap-3 rounded-md border border-line px-3 py-2.5">
               <span className={cn("grid size-8 shrink-0 place-items-center rounded-md [&_svg]:size-4",
-                i.tone === "ok" ? "bg-subtle text-fg-2" : i.tone === "warn" ? "bg-warn-soft text-warn" : "bg-subtle text-fg-3")}>{i.icon}</span>
+                i.tone === "ok" ? "bg-ok-soft text-ok" : i.tone === "warn" ? "bg-warn-soft text-warn" : "bg-subtle text-fg-3")}>{i.icon}</span>
               <span className="min-w-0">
                 <span className="block text-fs13 font-semibold">{i.title}</span>
                 <span className="block text-xs leading-snug text-fg-3">{i.desc}</span>
@@ -510,7 +521,7 @@ export function SecurityBoard({ status, role, aside }: { status: LiveStatus | nu
                   <td className="px-4 py-2 text-fs13">{p.what}</td>
                   {(Object.keys(ROLE_NAME) as Role[]).map((r) => (
                     <td key={r} className={cn("py-2 text-center", r === role && "bg-brand-soft/50")}>
-                      {p.roles[r] ? <Check className="mx-auto size-4 text-fg-2" strokeWidth={3} /> : <Minus className="mx-auto size-4 text-fg-3" />}
+                      {p.roles[r] ? <Check className="mx-auto size-4 text-ok" strokeWidth={3} /> : <Minus className="mx-auto size-4 text-fg-3" />}
                     </td>
                   ))}
                 </tr>

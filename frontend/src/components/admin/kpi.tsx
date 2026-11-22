@@ -5,7 +5,7 @@ import { Shape } from "@/components/ui/status"
 import { cn, type Tone } from "@/lib/utils"
 
 // 정상(ok)은 기본 글자색 · 색은 주의 · 위험에만
-const VALUE_TONE: Partial<Record<Tone, string>> = { warn: "text-warn", danger: "text-danger", off: "text-danger" }
+const VALUE_TONE: Partial<Record<Tone, string>> = { ok: "text-ok", warn: "text-warn", danger: "text-danger", off: "text-danger" }
 
 /** 초 → "2분 10초" */
 export const dur = (s: number) => (s >= 60 ? `${Math.floor(s / 60)}분${s % 60 >= 1 ? ` ${Math.round(s % 60)}초` : ""}` : `${Math.round(s)}초`)

@@ -44,10 +44,10 @@ def _demo() -> dict[str, Any]:
             # ④ 수거 후 새 BLE · Wi-Fi 없음 (10분마다 주소 변경 · BLE 원본의 Microsoft 기기와 같은 주기)
             SimDevice("ear", "숨긴 무선 이어폰", 27, 420, rotate=600, meta={"company": "0x004C", "interval": 30}),
             # ⑤ 큰 Wi-Fi 상향 전송 지속
-            SimDevice("phone", "숨긴 휴대폰", 14, 1800, rotate=900, meta={"company": "0x0075", "interval": 200},
-                      wifi=[(1800, 1860, "idle"), (1860, 9e9, "video_call")]),
+            SimDevice("phone", "숨긴 휴대폰", 14, 1200, rotate=900, meta={"company": "0x0075", "interval": 200},
+                      wifi=[(1200, 1260, "idle"), (1260, 9e9, "video_call")]),
         ],
-        "node_fail": ("R3", 3300, 3420),  # ⑦ 장비 이상 (수신기 3/4)
+        "node_fail": ("R3", 1800, 1920),  # ⑦ 장비 이상 (수신기 3/4) · 40분 시험 안에 들어오게 30분에
     }
 
 
@@ -57,7 +57,7 @@ def _quiet() -> dict[str, Any]:
         "devices": [
             SimDevice("desk-phone", "감독관 휴대폰", "desk", -1200, rotate=900, meta={"company": "0x0075", "interval": 300}),
             SimDevice("tv", "교실 TV", "tv", -1200, meta={"company": "0x00E0", "interval": 1000}),
-            SimDevice("next-watch", "옆 교실 스마트워치", "outside", 300, 2400, rotate=600, meta={"company": "0x0075", "interval": 500}),
+            SimDevice("next-watch", "옆 교실 스마트워치", "outside", 300, 2100, rotate=600, meta={"company": "0x0075", "interval": 500}),
         ],
         "node_fail": None,
     }

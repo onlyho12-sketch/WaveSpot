@@ -12,8 +12,10 @@ class ExamSession(SQLModel, table=True):
     cols: int = 10
     state: str = "setup"  # setup -> baseline -> running -> ended
     scenario: str = "demo"
-    exam_start_label: str = "09:00"
-    duration_min: int = 100
+    exam_date: str = ""  # 시험 날짜 YYYY-MM-DD
+    place: str = ""  # 시험 장소 (예: 본관 301호)
+    exam_start_label: str = "09:00"  # 시작 시각 HH:MM
+    duration_min: int = 40  # 기본 시험: 컴퓨터활용능력 2급 필기 40분
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
 

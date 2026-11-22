@@ -62,7 +62,7 @@ export function Axis({ total, start }: { total: number; start: string }) {
 }
 
 export function StateTimeline({ clock, events, requests, startLabel }: { clock: Clock | null; events: AgentEvent[]; requests: SearchRequest[]; startLabel: string }) {
-  const total = clock?.duration_min ?? 100
+  const total = clock?.duration_min ?? 40
   const now = clock && clock.state !== "setup" && clock.state !== "baseline" ? Math.min(total - 1, Math.floor(Math.max(clock.t, 0) / 60)) : -1
   const states = minuteStates(total, now, events, requests)
   return (

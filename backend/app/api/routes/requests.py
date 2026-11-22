@@ -127,6 +127,6 @@ async def add_allow(body: AllowIn):
     if engine.agent is None:
         raise HTTPException(409, "진행 중인 시험이 없습니다")
     if engine.session and engine.session.state in ("running", "ended"):
-        raise HTTPException(423, "시험 중에는 허용 목록이 잠겨 있습니다 (입실 전 기준선에서만 등록)")
+        raise HTTPException(423, "시험 중에는 허용 목록이 잠겨 있습니다 (수험생 입실 전에만 등록)")
     closed = await engine.allow_device(body.device_id, body.label.strip() or "감독관 등록")
     return {"closed": [r.id for r in closed], **engine.status()}

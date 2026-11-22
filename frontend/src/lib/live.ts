@@ -1,6 +1,6 @@
 // 서버 실시간 상태 (WebSocket 하나로 받아 화면 전체가 공유)
 import { useSyncExternalStore } from "react"
-import { api, ApiError, type AgentEvent, type Clock, type Handheld, type SearchRequest, type Stats, type Status, type TrackedDevice } from "./api"
+import { api, ApiError, getSession, logout, onAuthChange, type AgentEvent, type Clock, type Handheld, type SearchRequest, type Stats, type Status, type TrackedDevice } from "./api"
 
 /** 수색 결과 이중 저장: 서버가 저장을 확인해 주지 않으면 태블릿에 먼저 두고 연결되면 보냄 (v11 10장) */
 export type PendingResult = { id: number; body: { found: boolean; seat?: number | null; note?: string }; at: number }
@@ -59,7 +59,7 @@ export async function sendResult(id: number, body: PendingResult["body"]): Promi
 
 let flushing = false
 export async function flushOutbox() {
-  if (flushing || state.outbox.length === 0) return
+  if (flushing || state.outbox.length === 0 || !getSession()) return
   flushing = true
   try {
     for (const p of [...state.outbox]) {
@@ -87,17 +87,21 @@ async function reload() {
   set({ requests: Object.fromEntries(requests.map((r) => [r.id, r])), events: events.reverse(), devices, handheld: {} })
 }
 
+/** 로그인한 뒤에만 연결 · 토큰은 주소로 (브라우저 웹소켓은 머리글을 못 붙임) */
 function connect() {
+  const s = getSession()
+  if (!s || (ws && ws.readyState < 2)) return
   const proto = location.protocol === "https:" ? "wss" : "ws"
-  ws = new WebSocket(`${proto}://${location.host}/api/ws`)
+  ws = new WebSocket(`${proto}://${location.host}/api/ws?token=${encodeURIComponent(s.token)}`)
   ws.onopen = () => {
     set({ connected: true })
     void reload() // 처음 연결 · 다시 연결될 때 놓친 요청과 기록을 채움
     void flushOutbox()
   }
-  ws.onclose = () => {
+  ws.onclose = (e) => {
     set({ connected: false })
-    setTimeout(connect, 1500)
+    if (e.code === 4401) return logout() // 토큰이 맞지 않음 -> 로그인 화면으로
+    if (getSession()) setTimeout(connect, 1500)
   }
   ws.onmessage = (m) => {
     const { type, data } = JSON.parse(m.data)
@@ -143,6 +147,15 @@ function connect() {
 }
 
 setInterval(() => ws?.readyState === WebSocket.OPEN && ws.send("ping"), 20000)
+// 로그인하면 연결, 로그아웃하면 끊고 화면 상태를 비움 (다른 계정으로 들어올 때 이전 화면이 남지 않게)
+onAuthChange(() => {
+  if (getSession()) return connect()
+  const old = ws
+  ws = null
+  old?.close()
+  sessionId = null
+  set({ connected: false, status: null, clock: null, devices: [], requests: {}, events: [], handheld: {}, stats: null })
+})
 connect()
 
 export function useLive<T>(pick: (s: Live) => T): T {

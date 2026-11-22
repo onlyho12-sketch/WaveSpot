@@ -10,6 +10,7 @@ __pycache__/
 db/*.db
 db/*.db-*
 db/checkpoint.json
+db/auth.key
 
 # 모델 파일은 설치 단계에서 학습해 만듦 (저장소에는 학습 코드만)
 backend/app/ml/artifacts/
@@ -38,3 +39,6 @@ frontend/_이전UI_*/
 # 수신기 펌웨어: 비밀번호가 들어가는 설정 · 빌드 산출물
 firmware/**/config.h
 firmware/.pio/
+
+# 타입 검사 캐시
+*.tsbuildinfo

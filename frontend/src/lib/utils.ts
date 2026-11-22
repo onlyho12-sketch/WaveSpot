@@ -10,9 +10,50 @@ export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs))
 
 export type Tone = "ok" | "warn" | "danger" | "off" | "neutral" | "brand"
 
-/** 반쪽 줄 구역(5석) -> 좌석 번호 */
-export const seatsOfZone = (zone: number) => Array.from({ length: 5 }, (_, i) => (zone - 1) * 5 + i + 1)
+/** 좌석 -> 위치 모델이 맞히는 반쪽 줄(5석) 번호 · 좌석을 누르면 이 줄 가운데를 중심으로 한 원(수색 범위)을 고름 */
 export const zoneOfSeat = (seat: number) => Math.floor((seat - 1) / 5) + 1
+
+/**
+ * 수색 범위 = 원. 중심은 위치 모델이 고른 반쪽 줄의 가운데 좌석, 원 안에 좌석 중심이 드는 자리를 휴대형으로 순회.
+ * 좌석 배치도 비율(옆 간격 1, 앞뒤 간격 1.3) 기준 · 서버 app/ml/features.py range_seats 와 같은 계산
+ */
+export const ROW_RATIO = 1.3
+export const ROI_R = 1.4 // 반지름 (좌석 칸 수) · 가운데 좌석과 바로 옆 · 앞 · 뒤 좌석만
+export const ROI_WIDE = 1.35 // 수신기 1대가 끊기면 넓힘
+
+/** 원의 중심 (좌석 칸 단위: x = 옆, y = 앞뒤) */
+export const roiCenter = (zone: number, cols = 10) => {
+  const half = Math.ceil(cols / 2)
+  return { x: ((zone - 1) % 2) * half + half / 2, y: (Math.floor((zone - 1) / 2) + 0.5) * ROW_RATIO }
+}
+export const centerSeat = (zone: number, cols = 10) => {
+  const half = Math.ceil(cols / 2)
+  return Math.floor((zone - 1) / 2) * cols + ((zone - 1) % 2) * half + Math.floor(half / 2) + 1
+}
+/** 원 안 좌석 (번호 순) · 예: 28번 주변 = 18, 27~29, 38번 */
+export function rangeSeats(zone: number, rows = 4, cols = 10, wide = false) {
+  const { x, y } = roiCenter(zone, cols)
+  const r = ROI_R * (wide ? ROI_WIDE : 1)
+  const out: number[] = []
+  for (let s = 1; s <= rows * cols; s++) {
+    const c = (s - 1) % cols
+    const row = Math.floor((s - 1) / cols)
+    if (Math.hypot(c + 0.5 - x, (row + 0.5) * ROW_RATIO - y) <= r) out.push(s)
+  }
+  return out
+}
+/** 수색 범위 이름 = 원 가운데 좌석 · "28번 주변" */
+export const rangeName = (zone: number, cols = 10) => `${centerSeat(zone, cols)}번 주변`
+/** [17, 18, 19, 26] -> "17~19, 26번" */
+export function seatText(seats: number[]) {
+  const runs: number[][] = []
+  for (const s of [...seats].sort((a, b) => a - b)) {
+    const last = runs.at(-1)
+    if (last && s === last[last.length - 1] + 1) last.push(s)
+    else runs.push([s])
+  }
+  return runs.map((r) => (r.length > 1 ? `${r[0]}~${r[r.length - 1]}` : `${r[0]}`)).join(", ") + "번"
+}
 export const pct = (p: number | null | undefined) => (p == null ? "-" : `${Math.round(p * 100)}%`)
 
 /** 설치형 수신기 = 천장 네 모서리 (앞 왼쪽 R1 · 앞 오른쪽 R2 · 뒤 왼쪽 R3 · 뒤 오른쪽 R4) */
@@ -20,9 +61,9 @@ export const NODE_SEATS: Record<string, number> = { R1: 1, R2: 10, R3: 31, R4: 4
 export const NODE_PLACE: Record<string, string> = { R1: "앞 왼쪽", R2: "앞 오른쪽", R3: "뒤 왼쪽", R4: "뒤 오른쪽" }
 
 export const LEVELS = [
-  { lv: 0, name: "감시", desc: "허용 목록 밖 신호 없음" },
+  { lv: 0, name: "이상 없음", desc: "허용 목록 밖 신호 없음" },
   { lv: 1, name: "추가 관찰", desc: "30초 더 관찰" },
-  { lv: 2, name: "휴대형 접근", desc: "구역 순회 (좌석 옆 2초)" },
+  { lv: 2, name: "휴대형 접근", desc: "수색 범위 순회 (좌석 옆 2초)" },
   { lv: 3, name: "정밀 수색", desc: "의심 좌석을 금속탐지기로" },
   { lv: 4, name: "2차 수색", desc: "신호가 남으면 다시" },
 ] as const
@@ -74,3 +115,12 @@ export const DEVICE_MODELS: { name: string; keys: string[] }[] = [
 export const modelName = (m: string) => MODEL_LABEL[m] ?? m
 
 export const DONE_LABEL: Record<string, string> = { found: "기기 발견", not_found: "미발견", unresolved: "미해결", allowed: "허용 등록" }
+
+/** "2026-11-22" -> "11월 22일 (일)" · 비어 있으면 "" */
+export function dateLabel(d: string | null | undefined) {
+  if (!d) return ""
+  const [y, m, day] = d.split("-").map(Number)
+  if (!y || !m || !day) return ""
+  const w = "일월화수목금토"[new Date(y, m - 1, day).getDay()]
+  return `${m}월 ${day}일 (${w})`
+}

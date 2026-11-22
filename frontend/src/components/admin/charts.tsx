@@ -18,7 +18,7 @@ export function niceMax(v: number) {
 const MODEL_INFO: Record<string, { name: string; q: string; algo: string; icon: ReactNode }> = {
   이상: { name: "이상 감지", q: "교실 전체 신호가 평소와 다른가", algo: "Isolation Forest", icon: <Activity /> },
   묶기: { name: "기기 묶기", q: "주소가 바뀌어도 같은 기기인가", algo: "로지스틱 회귀", icon: <Link2 /> },
-  "안/밖": { name: "위치 추정", q: "① 교실 안인가 → ② 어느 구역인가", algo: "랜덤 포레스트 2단계", icon: <MapPin /> },
+  "안/밖": { name: "위치 추정", q: "① 교실 안인가 → ② 교실 어디쯤인가", algo: "랜덤 포레스트 2단계", icon: <MapPin /> },
   종류: { name: "기기 종류", q: "어떤 종류의 기기인가", algo: "랜덤 포레스트", icon: <Smartphone /> },
   용도: { name: "Wi-Fi 용도", q: "영상 통화나 사진 전송 중인가", algo: "랜덤 포레스트", icon: <Wifi /> },
   점수: { name: "위험 점수", q: "정밀 수색하면 기기가 나올 가능성", algo: "로지스틱 회귀", icon: <Gauge /> },
@@ -43,7 +43,7 @@ export function ModelCards({ models, byModel, total: total0, totals = {} }: { mo
         const skipped = Math.max(0, total - n)
         const share = total ? Math.min(1, n / total) : 0
         return (
-          <li key={k} className="rounded-md border border-line px-3 py-2.5" title={`${info.name} 모델${info.algo ? ` (${info.algo})` : ""}: 부름 ${n.toLocaleString()}회, 건너뜀 ${skipped.toLocaleString()}회 (기기별 판단 ${total.toLocaleString()}회 기준)`}>
+          <li key={k} className="rounded-md border border-line px-3 py-2.5" title={`${info.name} 모델${info.algo ? ` (${info.algo})` : ""}: 사용 ${n.toLocaleString()}회, 건너뜀 ${skipped.toLocaleString()}회 (기기별 판단 ${total.toLocaleString()}회 기준)`}>
             <div className="flex items-start gap-2.5">
               <span className="grid size-8 shrink-0 place-items-center rounded-md bg-subtle text-fg-2 [&_svg]:size-4">{info.icon}</span>
               <div className="min-w-0 flex-1">
@@ -59,8 +59,8 @@ export function ModelCards({ models, byModel, total: total0, totals = {} }: { mo
               {skipped > 0 && <span className="h-full flex-1 bg-line-strong/50" />}
             </span>
             <div className="num mt-1 flex text-fs11 text-fg-3">
-              <span className="font-semibold text-fg-2">{always ? "매번 부름" : `부름 ${Math.round(share * 100)}%`}</span>
-              <span className="ml-auto">{always ? (k === "이상" ? "10초마다 교실 전체" : "주소가 바뀌면 한 번 더") : two ? `② 구역까지 ${zone.toLocaleString()}회` : `건너뜀 ${skipped.toLocaleString()}회`}</span>
+              <span className="font-semibold text-fg-2">{always ? "매번 사용" : `사용 ${Math.round(share * 100)}%`}</span>
+              <span className="ml-auto">{always ? (k === "이상" ? "10초마다 교실 전체" : "주소가 바뀌면 한 번 더") : two ? `교실 안이면 위치까지 ${zone.toLocaleString()}회` : `건너뜀 ${skipped.toLocaleString()}회`}</span>
             </div>
           </li>
         )
@@ -134,7 +134,7 @@ export function LadderBars({ now, results }: {
   results: { label: string; n: number; tone: Tone }[]
 }) {
   const max = Math.max(1, ...now.map((r) => r.n))
-  const bar: Record<Tone, string> = { warn: "bg-warn-fill", danger: "bg-danger", ok: "bg-fg-3", neutral: "bg-fg-2", off: "bg-danger", brand: "bg-brand" }
+  const bar: Record<Tone, string> = { warn: "bg-warn-fill", danger: "bg-danger", ok: "bg-ok", neutral: "bg-fg-2", off: "bg-danger", brand: "bg-brand" }
   const row = (key: string, head: ReactNode, n: number, tone: Tone) => (
     <li key={key} className="grid grid-cols-[9rem_minmax(0,1fr)] items-center gap-3 text-fs16">
       {head}

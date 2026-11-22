@@ -5,8 +5,8 @@ import { useQuery } from "@tanstack/react-query"
 import { Download, RefreshCw, ShieldAlert, ShieldCheck } from "lucide-react"
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Panel, Status, Tag } from "@/components/ui/status"
-import { api, type FaultRecord } from "@/lib/api"
+import { Panel, Status, Tag, useGreenOk } from "@/components/ui/status"
+import { api, getRole, type FaultRecord } from "@/lib/api"
 import { useLive } from "@/lib/live"
 import { cn } from "@/lib/utils"
 
@@ -15,6 +15,7 @@ const shortHash = (h: string) => `${h.slice(0, 4)} ${h.slice(4, 8)} … ${h.slic
 
 export function ChainPanel({ sessionId }: { sessionId: number | null }) {
   const events = useLive((s) => s.events.length)
+  const green = useGreenOk()
   const q = useQuery({ queryKey: ["chain", sessionId], queryFn: api.verifyChain, enabled: sessionId != null })
   const [busy, setBusy] = useState(false)
   const [exportErr, setExportErr] = useState<string | null>(null)
@@ -49,15 +50,15 @@ export function ChainPanel({ sessionId }: { sessionId: number | null }) {
         ) : (
           <>
             <div className="flex items-center gap-3">
-              {v.ok ? <ShieldCheck className="size-8 text-fg-3" /> : <ShieldAlert className="size-9 text-danger" />}
+              {v.ok ? <ShieldCheck className={cn("size-8", green ? "text-ok" : "text-fg-3")} /> : <ShieldAlert className="size-9 text-danger" />}
               <div>
-                <div className={cn("text-fs17 font-bold", v.ok ? "text-fg" : "text-danger")}>{v.ok ? "고친 흔적 없음" : "기록이 바뀌었습니다"}</div>
+                <div className={cn("text-fs17 font-bold", v.ok ? (green ? "text-ok" : "text-fg") : "text-danger")}>{v.ok ? "고친 흔적 없음" : "기록이 바뀌었습니다"}</div>
                 <div className="num text-fs13 text-fg-3">기록 {v.count.toLocaleString()}건. 판단, 결과, 의견마다 앞 기록과 연결한 해시로 확인</div>
               </div>
             </div>
             {v.last_hash && (
               <div className="min-w-0">
-                <div className="text-fs12 font-semibold text-fg-3">마지막 값 (시험 종료 때 감독관 확인서에 적어 둡니다)</div>
+                <div className="text-fs12 font-semibold text-fg-3">{getRole() === "supervisor" ? "마지막 값 (시험 종료 때 감독관 확인서에 적어 둡니다)" : "마지막 값 (감독관 확인서의 값과 같으면 시험 뒤 바뀐 기록 없음)"}</div>
                 <div className="num mt-0.5 font-mono text-fs17 font-bold tracking-wide" title={v.last_hash}>{shortHash(v.last_hash)}</div>
               </div>
             )}

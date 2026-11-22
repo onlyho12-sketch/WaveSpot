@@ -1,14 +1,24 @@
 // 상태 표시 · 모양 + 색 + 글자 (IBM Carbon status indicator)
 // 색약 · 흑백 인쇄에서도 구분되도록 모양을 다르게: 정상 ● · 주의 ▲ · 경고 ◆ · 끊김 ○ · 대기 □
 // 정상 ●은 회색 (ISA-101 · Stephen Few: 색은 이상이 있는 곳에만)
-import type { ReactNode } from "react"
+// 예외 passGreen: 준비 화면 점검표처럼 '통과했는가'를 확인하는 곳은 정상 ●을 초록으로
+import { createContext, type ReactNode, useContext } from "react"
 import { cn, type Tone } from "@/lib/utils"
 
-export function Shape({ tone, className }: { tone: Tone; className?: string }) {
+/** 이 안에서는 정상 ●과 정상 꼬리표를 초록으로 (관리 화면: 정상 초록 · 경고 주황 · 비상 빨강) */
+const GreenOk = createContext(false)
+export function GreenOkScope({ children }: { children: ReactNode }) {
+  return <GreenOk.Provider value>{children}</GreenOk.Provider>
+}
+export const useGreenOk = () => useContext(GreenOk)
+
+export function Shape({ tone, className, passGreen = false }: { tone: Tone; className?: string; passGreen?: boolean }) {
+  const scope = useGreenOk()
+  passGreen = passGreen || scope
   const c = cn("size-3 shrink-0", className)
   switch (tone) {
     case "ok":
-      return <svg viewBox="0 0 12 12" className={cn(c, "text-fg-3")} aria-hidden><circle cx="6" cy="6" r="5" fill="currentColor" /></svg>
+      return <svg viewBox="0 0 12 12" className={cn(c, passGreen ? "text-ok" : "text-fg-3")} aria-hidden><circle cx="6" cy="6" r="5" fill="currentColor" /></svg>
     case "warn":
       return <svg viewBox="0 0 12 12" className={cn(c, "text-warn-fill")} aria-hidden><path d="M6 1 11.2 10.5H.8Z" fill="currentColor" /></svg>
     case "danger":
@@ -20,10 +30,10 @@ export function Shape({ tone, className }: { tone: Tone; className?: string }) {
   }
 }
 
-export function Status({ tone, children, className }: { tone: Tone; children: ReactNode; className?: string }) {
+export function Status({ tone, children, className, passGreen }: { tone: Tone; children: ReactNode; className?: string; passGreen?: boolean }) {
   return (
     <span className={cn("inline-flex items-center gap-1.5 whitespace-nowrap", className)}>
-      <Shape tone={tone} />
+      <Shape tone={tone} passGreen={passGreen} />
       {children}
     </span>
   )
@@ -31,8 +41,9 @@ export function Status({ tone, children, className }: { tone: Tone; children: Re
 
 /** 작은 꼬리표 (대응 단계 · 모델 이름 등). 모서리 4px */
 export function Tag({ tone = "neutral", solid = false, children, className }: { tone?: Tone; solid?: boolean; children: ReactNode; className?: string }) {
+  const green = useGreenOk()
   const soft: Record<Tone, string> = {
-    ok: "bg-fg/[0.06] text-fg-2", // 정상은 회색 (색은 이상에만)
+    ok: green ? "bg-ok-soft text-ok" : "bg-fg/[0.06] text-fg-2", // 정상은 회색 (관리 화면은 초록)
     warn: "bg-warn-soft text-warn",
     danger: "bg-danger-soft text-danger",
     off: "bg-danger-soft text-danger",
@@ -40,7 +51,7 @@ export function Tag({ tone = "neutral", solid = false, children, className }: { 
     brand: "bg-brand-soft text-brand",
   }
   const fill: Record<Tone, string> = {
-    ok: "bg-fg-2 text-white",
+    ok: green ? "bg-ok text-white" : "bg-fg-2 text-white",
     warn: "bg-warn-fill text-white",
     danger: "bg-danger text-white",
     off: "bg-danger text-white",

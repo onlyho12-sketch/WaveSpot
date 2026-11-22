@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     mqtt_port: int = 1883
     mqtt_topic_root: str = "wavespot"
 
-    # 재생 속도 (1.0 = 실제 시간, 30 = 30배속 · 100분 시험이 약 3분 20초)
+    # 재생 속도 (1.0 = 실제 시간, 30 = 30배속 · 40분 시험이 약 1분 20초)
     replay_speed: float = 30.0
 
     # 판단 기준 (설계안 v9)
@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     inside_rssi: float = -85.0  # 교실 안 판정: 가장 강한 수신기 세기
     inside_min_nodes: int = 3  # 교실 안 판정: 신호를 들은 수신기 수
     inside_strong_rssi: float = -75.0  # 이보다 강하면 수신기 2대만 들어도 교실 안
+
+    # 로그인 토큰 서명 키 (비우면 db 폴더의 auth.key 파일을 만들어 씀)
+    auth_secret: str = ""
 
     db_path: Path = UI_DIR / "db" / "wavespot.db"
     artifacts_dir: Path = BACKEND_DIR / "app" / "ml" / "artifacts"

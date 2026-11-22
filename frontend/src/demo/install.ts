@@ -6,6 +6,8 @@ const DEMO = import.meta.env.VITE_DEMO === "1"
 const STEPS = ["실행 환경 받기 (Python, WebAssembly)", "AI 라이브러리 받기 (scikit-learn 등)", "현장 서버 코드와 모델 파일 받기", "AI 모델 6개 불러오고 시험 준비"]
 
 function overlay() {
+  const w = window as { __demoLoading?: boolean }
+  w.__demoLoading = true // 준비 중에는 화면에 '연결 끊김' 배너를 띄우지 않음 (AppShell)
   const el = document.createElement("div")
   el.setAttribute("role", "status")
   el.style.cssText =
@@ -19,7 +21,7 @@ function overlay() {
           <div style="font-size:13px;color:#64748b;margin-top:2px">처음 한 번은 30초~1분 걸립니다. 다음부터는 더 빨라요</div>
         </div>
       </div>
-      <p style="font-size:14px;line-height:1.6;color:#334155;margin:16px 0 14px">현장 서버(AI 에이전트와 AI 모델 6개)를 이 브라우저 안에서 그대로 실행합니다. 설치나 로그인은 필요 없습니다.</p>
+      <p style="font-size:14px;line-height:1.6;color:#334155;margin:16px 0 14px">현장 서버(에이전트와 AI 모델 6개)를 이 브라우저 안에서 그대로 실행합니다. 설치는 필요 없습니다.</p>
       <ol data-steps style="list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14px"></ol>
       <div data-err style="display:none;margin-top:14px;font-size:13px;color:#b91c1c;line-height:1.5"></div>
     </div>`
@@ -42,10 +44,12 @@ function overlay() {
   return {
     step: render,
     done: () => {
+      w.__demoLoading = false
       el.style.opacity = "0"
       setTimeout(() => el.remove(), 300)
     },
     fail: (msg: string) => {
+      w.__demoLoading = false
       const err = el.querySelector<HTMLDivElement>("[data-err]")!
       err.style.display = "block"
       err.innerHTML = `시연 서버를 시작하지 못했습니다. 인터넷 연결을 확인하고 <a href="" style="color:#2563eb">새로고침</a>해 주세요.<br/><span style="color:#94a3b8">${msg.replace(/</g, "&lt;")}</span>`
@@ -107,7 +111,8 @@ function install() {
       super()
       this.url = url
       sockets.set(this.cid, this)
-      void ready.then(() => worker.postMessage({ type: "ws-open", cid: this.cid }))
+      const query = new URL(url, location.href).search.slice(1) // ?token= (로그인 토큰)
+      void ready.then(() => worker.postMessage({ type: "ws-open", cid: this.cid, query }))
     }
     send(text: string) {
       if (this.readyState === 1) worker.postMessage({ type: "ws-send", cid: this.cid, text })

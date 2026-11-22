@@ -85,12 +85,12 @@ async def http(method: str, path: str, query: str, headers: list, body: bytes | 
     return out
 
 
-def ws_open(cid: int, emit) -> None:
-    """emit(cid, kind, value): kind = open | message | close"""
+def ws_open(cid: int, emit, query: str = "") -> None:
+    """emit(cid, kind, value): kind = open | message | close · query: 주소의 ?token= (로그인 토큰)"""
     q: asyncio.Queue = asyncio.Queue()
     q.put_nowait({"type": "websocket.connect"})
     scope = {"type": "websocket", "asgi": {"version": "3.0"}, "scheme": "wss", "path": "/api/ws", "raw_path": b"/api/ws",
-             "query_string": b"", "root_path": "", "headers": [], "subprotocols": [], "client": ("127.0.0.1", 0),
+             "query_string": (query or "").encode(), "root_path": "", "headers": [], "subprotocols": [], "client": ("127.0.0.1", 0),
              "server": ("wavespot.local", 443)}
 
     async def receive():

@@ -5,14 +5,15 @@
 // 결과 판단은 AI가 아니라 감독관 → '확정은 기기 발견 시'
 // v11 10장: 기록 위변조 확인(해시 체인 · 확인서에 적을 마지막 값) · 리포트 내보내기 · 장애 · 복구 기록(시간순)
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { type FormEvent, useMemo, useState } from "react"
+import { type FormEvent, useCallback, useMemo, useState } from "react"
 import { AgentLog } from "@/components/monitor/AgentLog"
 import { EvidenceSheet, ScoreBadge, target } from "@/components/monitor/RequestCard"
 import { ChainPanel, FaultLog } from "@/components/monitor/SystemPanels"
 import { Axis, minuteStates, StateBand } from "@/components/monitor/StateTimeline"
 import { Button } from "@/components/ui/button"
 import { Panel, Status, Tag } from "@/components/ui/status"
-import { api, type AgentEvent, type SearchRequest } from "@/lib/api"
+import { api, getRole, ROLE_NAME, type AgentEvent, type SearchRequest } from "@/lib/api"
+import { canRecord } from "@/lib/roles"
 import { useLive } from "@/lib/live"
 import { clockOf, cn, DONE_LABEL, isOpen, type Tone } from "@/lib/utils"
 
@@ -42,7 +43,7 @@ export function Log() {
   const requests = useMemo(() => Object.values(requestsMap).sort((a, b) => b.id - a.id), [requestsMap])
   const count = (s: string) => requests.filter((r) => r.state === s).length
   const start = status?.session?.exam_start_label ?? "09:00"
-  const total = clock?.duration_min ?? 100
+  const total = clock?.duration_min ?? 40
   const now = clock && (clock.state === "running" || clock.state === "ended") ? Math.min(total - 1, Math.floor(Math.max(clock.t, 0) / 60)) : -1
   const states = minuteStates(total, now, events, requests)
   const shown = events.filter(FILTERS.find((f) => f.key === filter)!.test)
@@ -119,7 +120,7 @@ export function Log() {
               <thead className="border-b border-line bg-subtle text-left text-xs text-fg-3">
                 <tr>
                   <th className="w-16 px-4 py-2 font-semibold">시각</th>
-                  <th className="py-2 font-semibold">구역</th>
+                  <th className="py-2 font-semibold">위치</th>
                   <th className="py-2 font-semibold">감지 기기</th>
                   <th className="w-14 py-2 text-center font-semibold">점수</th>
                   <th className="px-4 py-2 font-semibold">처리 결과</th>
@@ -232,12 +233,17 @@ function Notes({ sessionId }: { sessionId: number | null }) {
           ))}
         </ol>
       )}
+      {/* 의견은 감독관만 (서버도 다른 역할의 쓰기를 거부) → 입력 칸 대신 안내 */}
+      {!canRecord(getRole()) ? (
+        <p className="border-t border-line px-4 py-3 text-fs13 text-fg-3">{ROLE_NAME[getRole()]} 계정은 의견을 볼 수만 있습니다.</p>
+      ) : (
       <form onSubmit={submit} className="flex gap-2 border-t border-line p-3">
         <label htmlFor="note-text" className="sr-only">의견</label>
         <input id="note-text" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="예: 27번 가방 확인, 이상 없음"
           className="h-11 min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-3 text-fs15 placeholder:text-fg-3 focus:border-brand focus:outline-none" />
         <Button type="submit" disabled={!text.trim() || add.isPending || sessionId == null}>등록</Button>
       </form>
+      )}
       {add.isError && <p role="alert" className="px-4 pb-3 text-sm text-danger">{add.error.message}</p>}
     </Panel>
   )
@@ -252,16 +258,52 @@ function Big({ label, value }: { label: string; value: number }) {
   )
 }
 
+/** 표시 사이가 이만큼(px)보다 가까우면 한 표시로 묶음 (표시 폭 6px · 서로 겹쳐 아래 표시를 못 누르던 문제) */
+const MERGE_PX = 12
+
 function Track({ label, events, total, cls, sel, onPick }: { label: string; events: AgentEvent[]; total: number; cls: string; sel: number | null; onPick: (id: number) => void }) {
+  const [width, setWidth] = useState(0)
+  const measure = useCallback((el: HTMLDivElement | null) => {
+    if (!el) return
+    setWidth(el.offsetWidth)
+    const ro = new ResizeObserver(() => setWidth(el.offsetWidth))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // 시간순으로 훑으며, 묶음 첫 표시와 MERGE_PX 안쪽이면 같은 묶음
+  const groups = useMemo(() => {
+    const gap = width > 0 ? (MERGE_PX / width) * total * 60 : 0
+    const out: AgentEvent[][] = []
+    for (const e of [...events].sort((a, b) => a.sim_time - b.sim_time || a.id - b.id)) {
+      const g = out.at(-1)
+      if (g && e.sim_time - g[0].sim_time < gap) g.push(e)
+      else out.push([e])
+    }
+    return out
+  }, [events, total, width])
+
   return (
     <>
       <span className="text-fs13 text-fg-2">{label} <span className="num text-fg-3">{events.length}</span></span>
-      <div className="relative h-6 rounded-sm bg-subtle">
-        {events.map((e) => (
-          <button key={e.id} type="button" onClick={() => onPick(e.id)} title={`${e.clock} ${e.message}`}
-            className={cn("absolute top-1/2 h-4 w-1.5 -translate-x-1/2 -translate-y-1/2 rounded-[2px] hover:scale-y-125", cls, sel === e.id && "ring-2 ring-brand ring-offset-1")}
-            style={{ left: `${(e.sim_time / 60 / total) * 100}%` }} />
-        ))}
+      <div ref={measure} className="relative h-6 rounded-sm bg-subtle">
+        {groups.map((g) => {
+          const at = g.findIndex((e) => e.id === sel)
+          // 묶음은 누를 때마다 다음 기록으로 (마지막 다음은 처음)
+          const next = g[(at + 1) % g.length]
+          const many = g.length > 1
+          const title = g.map((e) => `${e.clock} ${e.message}`).join("\n")
+          return (
+            <button key={g[0].id} type="button" onClick={() => onPick(next.id)}
+              title={many ? `${g.length}건 · 누를 때마다 다음 기록\n${title}` : title}
+              aria-label={many ? `${g[0].clock.slice(0, 5)} 부근 기록 ${g.length}건` : `${g[0].clock.slice(0, 5)} 기록`}
+              className={cn("absolute top-1/2 flex h-4 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2px] hover:scale-y-125",
+                many ? "min-w-4 px-0.5" : "w-1.5", cls, at >= 0 && "ring-2 ring-brand ring-offset-1")}
+              style={{ left: `${(g[0].sim_time / 60 / total) * 100}%` }}>
+              {many && <span className="num text-fs10 leading-none font-bold text-surface">{g.length}</span>}
+            </button>
+          )
+        })}
       </div>
     </>
   )

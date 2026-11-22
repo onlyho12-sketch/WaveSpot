@@ -1,10 +1,10 @@
 // 순회 · 휴대형 접근 → 결과 입력 (휴대폰 = 목에 건 수신기와 연동한 감독관 폰, 태블릿도 같은 흐름)
-// ① 순회 전: 순회 경로 설정 (구역 순서 + 좌석마다 머무는 시간) + 버튼 2개 (근거 보기 · 순회 시작)
+// ① 순회 전: 순회 경로 설정 (수색 범위(원) 순서 · 좌석마다 2초 고정) + 버튼 2개 (근거 보기 · 순회 시작)
 // ② 순회 중: Apple 정밀 탐색. 휴대폰은 화면 전체를 씀. ESP32 휴대형은 방향을 모르므로 화살표 대신
-//    원형 게이지(이번 순회 최고값 대비) + 3단계 색(멀다 회색 · 가까워짐 주황 · 가장 가까움 빨강) + 진동
+//    원형 게이지(이번 순회 최고값 대비) + 3단계 색(멀리 있음 회색 · 가까워짐 주황 · 가장 가까움 빨강) · 시험 중이라 진동 없음
 // ③ 순회 후: 강하게 들린 순서로 좌석 목록 → 눌러서 고르고 아래 고정 버튼으로 결과 입력
 import { Link, useNavigate, useParams } from "@tanstack/react-router"
-import { ArrowLeft, Check, ChevronDown, ChevronRight, ChevronUp, FileText, Footprints, ScanSearch, Vibrate, VibrateOff, X } from "lucide-react"
+import { ArrowLeft, Check, ChevronDown, ChevronRight, ChevronUp, FileText, Footprints, ScanSearch, X } from "lucide-react"
 import { type ReactNode, useEffect, useMemo, useState } from "react"
 import { EvidenceSheet, PartChips, requestTitle, target, targetSub, useGo } from "@/components/monitor/RequestCard"
 import { SeatMap, type SeatState, type ZoneMark } from "@/components/monitor/SeatMap"
@@ -13,12 +13,13 @@ import { Panel, Shape } from "@/components/ui/status"
 import { api, type HandheldStep, type SearchRequest } from "@/lib/api"
 import { patchRequest, sendResult, useLive } from "@/lib/live"
 import { useIsPhone } from "@/lib/useIsPhone"
-import { clockOf, cn, DONE_LABEL, isOpen, zoneOfSeat } from "@/lib/utils"
+import { clockOf, cn, DONE_LABEL, isOpen, rangeName, rangeSeats, zoneOfSeat } from "@/lib/utils"
 
-const NEAR: Record<HandheldStep["level"], { label: string; bg: string; buzz: string; every: number }> = {
-  far: { label: "멀다", bg: "bg-notice", buzz: "진동 없음", every: 0 },
-  near: { label: "가까워짐", bg: "bg-warn-fill", buzz: "2초마다 진동", every: 2000 },
-  nearest: { label: "가장 가까움", bg: "bg-danger", buzz: "0.3초마다 진동", every: 300 },
+// every: 화면 고리가 퍼지는 간격 (시험 중이라 진동 · 소리 없이 화면으로만 알림)
+const NEAR: Record<HandheldStep["level"], { label: string; bg: string; every: number }> = {
+  far: { label: "멀리 있음", bg: "bg-notice", every: 0 },
+  near: { label: "가까워짐", bg: "bg-warn-fill", every: 2000 },
+  nearest: { label: "가장 가까움", bg: "bg-danger", every: 600 },
 }
 
 export function RoamIndex() {
@@ -114,29 +115,29 @@ export function Roam() {
   return (
     <div className="mx-auto flex max-w-xl flex-col gap-3 medium:gap-4">
       {head}
-      <PreWalk req={req} rows={rows} cols={cols} />
+      <PreWalk req={req} rows={rows} cols={cols} wide={status?.health?.mode === "degraded"} />
     </div>
   )
 }
 
-function zonesOf(req: SearchRequest): ZoneMark[] {
-  const z: ZoneMark[] = [{ zone: req.zone, kind: "request", label: req.zone2 ? "1순위" : "수색 구역" }]
-  if (req.zone2) z.push({ zone: req.zone2, kind: "candidate", label: "2순위" })
+function zonesOf(req: SearchRequest, wide = false): ZoneMark[] {
+  const z: ZoneMark[] = [{ zone: req.zone, kind: "request", label: req.zone2 ? "1순위" : "수색 범위", wide }]
+  if (req.zone2) z.push({ zone: req.zone2, kind: "candidate", label: "2순위", wide })
   return z
 }
 
-const DWELLS = [1, 2, 3, 5] as const
+/** 좌석마다 머무는 시간 (v10 실험 기준 2초 고정) */
+const DWELL = 2
 
 /**
  * ① 순회 전 · 순회 경로 설정 (대상 고르기 + 순서 + 주기)
- * 좌석 지도에서 구역을 눌러 넣고 빼기, 목록에서 순서 바꾸기, 좌석마다 머무는 시간 (v10 실험 기본 2초)
+ * 좌석 지도에서 수색 범위(원)를 눌러 넣고 빼기, 목록에서 순서 바꾸기, 좌석마다 머무는 시간은 2초 고정
  */
-function PreWalk({ req, rows, cols }: { req: SearchRequest; rows: number; cols: number }) {
+function PreWalk({ req, rows, cols, wide }: { req: SearchRequest; rows: number; cols: number; wide: boolean }) {
   const [open, setOpen] = useState(false)
   const { act } = useGo(req)
   const navigate = useNavigate()
   const [route, setRoute] = useState<number[]>(() => [req.zone, ...(req.zone2 ? [req.zone2] : [])])
-  const [dwell, setDwell] = useState<number>(2)
   const [busy, setBusy] = useState(false)
   const walks = act?.walk ?? false
 
@@ -149,13 +150,23 @@ function PreWalk({ req, rows, cols }: { req: SearchRequest; rows: number; cols: 
       ;[n[i], n[j]] = [n[j], n[i]]
       return n
     })
-  const secs = route.length * 5 * 2 * dwell // 구역 5석 · 앞뒤 2회 통과
-  const marks: ZoneMark[] = route.map((z, i) => ({ zone: z, kind: i === 0 ? "request" : "candidate", label: `${i + 1}번째` }))
+  // 범위(원)마다 새로 돌 좌석 · 겹치는 좌석은 앞 범위에서 한 번만 돎 (서버 _walk_run 과 같은 규칙)
+  const plan = useMemo(() => {
+    const seen = new Set<number>()
+    return route.map((z) => {
+      const seats = rangeSeats(z, rows, cols, wide).filter((s) => !seen.has(s))
+      seats.forEach((s) => seen.add(s))
+      return { z, seats }
+    })
+  }, [route, rows, cols, wide])
+  const allSeats = plan.flatMap((p) => p.seats)
+  const secs = allSeats.length * 2 * DWELL // 앞뒤 2회 통과
+  const marks: ZoneMark[] = route.map((z, i) => ({ zone: z, kind: i === 0 ? "request" : "candidate", label: `${i + 1}번째`, wide }))
 
   async function start() {
     setBusy(true)
     try {
-      patchRequest(await api.startSearch(req.id, false, { zones: route, dwell }))
+      patchRequest(await api.startSearch(req.id, false, { zones: route, dwell: DWELL }))
       navigate({ to: "/roam/$id", params: { id: String(req.id) } })
     } finally {
       setBusy(false)
@@ -165,19 +176,24 @@ function PreWalk({ req, rows, cols }: { req: SearchRequest; rows: number; cols: 
   return (
     <>
       <Panel title="순회 경로" aside={walks && <span className="num">예상 {Math.floor(secs / 60)}분 {secs % 60}초</span>} bodyClass="p-3 medium:p-4">
-        <SeatMap rows={rows} cols={cols} zones={walks ? marks : zonesOf(req)} compact legend={!walks} onSelect={walks ? (seat) => toggle(zoneOfSeat(seat)) : undefined} />
+        <SeatMap rows={rows} cols={cols} zones={walks ? marks : zonesOf(req, wide)} compact legend={!walks} inRange={walks ? allSeats : undefined}
+          onSelect={walks ? (seat) => toggle(zoneOfSeat(seat)) : undefined} />
         {walks && (
           <>
-            <p className="mt-2 text-fs13 text-fg-3">좌석을 누르면 그 구역을 경로에 넣거나 뺍니다.</p>
+            <p className="mt-2 text-fs13 text-fg-3">진하게 표시된 좌석을 순회합니다. 좌석을 누르면 그 좌석 주변 범위를 경로에 넣거나 뺍니다.</p>
             <ol className="mt-3 divide-y divide-line rounded-md border border-line">
-              {route.length === 0 && <li className="px-3 py-4 text-center text-sm text-fg-3">돌 구역을 하나 이상 고르세요.</li>}
-              {route.map((z, i) => (
-                <li key={z} className="flex h-12 items-center gap-2 pr-1 pl-3">
+              {route.length === 0 && <li className="px-3 py-4 text-center text-sm text-fg-3">순회할 범위를 하나 이상 고르세요.</li>}
+              {plan.map(({ z, seats }, i) => (
+                <li key={z} className="flex min-h-12 items-center gap-2 py-1.5 pr-1 pl-3">
                   <span className="num grid size-6 shrink-0 place-items-center rounded-full bg-fg text-xs font-bold text-surface">{i + 1}</span>
-                  <span className="font-semibold">{z}구역</span>
-                  <span className="num text-sm text-fg-3">{(z - 1) * 5 + 1}~{z * 5}번</span>
-                  {z === req.zone && <span className="text-xs font-semibold text-danger">AI 1순위</span>}
-                  {z === req.zone2 && <span className="text-xs font-semibold text-warn">AI 2순위</span>}
+                  <div className="min-w-0">
+                    <div className="flex items-baseline gap-2">
+                      <span className="num font-semibold">{rangeName(z, cols)}</span>
+                      <span className="num text-sm text-fg-3">{seats.length}석</span>
+                    </div>
+                    {z === req.zone && <div className="text-xs font-semibold text-danger">반입 금지 의심 기기 1순위</div>}
+                    {z === req.zone2 && <div className="text-xs font-semibold text-warn">반입 금지 의심 기기 2순위</div>}
+                  </div>
                   <span className="ml-auto flex">
                     <IconBtn label="위로" disabled={i === 0} onClick={() => move(i, -1)}><ChevronUp /></IconBtn>
                     <IconBtn label="아래로" disabled={i === route.length - 1} onClick={() => move(i, 1)}><ChevronDown /></IconBtn>
@@ -186,17 +202,6 @@ function PreWalk({ req, rows, cols }: { req: SearchRequest; rows: number; cols: 
                 </li>
               ))}
             </ol>
-            <div className="mt-4">
-              <div className="mb-1.5 text-fs13 font-semibold text-fg-2">좌석마다 머무는 시간</div>
-              <div role="radiogroup" className="grid grid-cols-4 rounded-md border border-line-strong p-0.5">
-                {DWELLS.map((d) => (
-                  <button key={d} type="button" role="radio" aria-checked={dwell === d} onClick={() => setDwell(d)}
-                    className={cn("num h-10 rounded-[5px] text-sm font-semibold", dwell === d ? "bg-fg text-surface" : "text-fg-2 hover:bg-fg/5")}>
-                    {d}초{d === 2 ? " (권장)" : ""}
-                  </button>
-                ))}
-              </div>
-            </div>
           </>
         )}
         <div className="mt-4 grid grid-cols-2 gap-2">
@@ -222,26 +227,10 @@ function IconBtn({ label, disabled, onClick, children }: { label: string; disabl
   )
 }
 
-/** 단계에 맞춰 진동 (Android Chrome 지원 · iOS Safari 는 진동 API 없음) */
-function useBuzz(every: number, on: boolean) {
-  useEffect(() => {
-    if (!on || !every || !("vibrate" in navigator)) return
-    const pulse = () => navigator.vibrate(every <= 300 ? 120 : 250)
-    pulse()
-    const t = setInterval(pulse, every)
-    return () => {
-      clearInterval(t)
-      navigator.vibrate(0)
-    }
-  }, [every, on])
-}
-
 /** ② 정밀 탐색 (Apple 나의 찾기 배치: 위 대상 · 가운데 표시 · 아래 큰 글자 2줄 · 둥근 버튼) */
 function Precision({ step, fullscreen }: { step: HandheldStep; fullscreen: boolean }) {
   const navigate = useNavigate()
-  const [buzz, setBuzz] = useState(true)
   const lv = NEAR[step.level]
-  useBuzz(lv.every, buzz)
   const fill = Math.max(4, Math.min(100, 100 + step.rel_db * 6))
   const next = step.zones && step.zone_index != null ? step.zones[step.zone_index + 1] ?? null : null
   const R = 88, C = 2 * Math.PI * R
@@ -254,16 +243,16 @@ function Precision({ step, fullscreen }: { step: HandheldStep; fullscreen: boole
         순회 중{step.zones && step.zones.length > 1 ? `, ${step.zones.length}곳 중 ${(step.zone_index ?? 0) + 1}번째` : ""}, {step.pass}회차
       </div>
       <div className="mt-0.5 flex items-baseline gap-3">
-        <span className="text-fs22 font-bold">지금 {step.zone}구역</span>
-        {next != null && <span className="text-fs15 font-semibold opacity-75">다음 {next}구역</span>}
+        <span className="num text-fs22 font-bold">지금 {rangeName(step.zone)}</span>
+        {next != null && <span className="num text-fs15 font-semibold opacity-75">다음 {rangeName(next)}</span>}
       </div>
 
       <div className="grid flex-1 place-items-center py-4">
         <div className="relative size-[min(68vw,240px)] expanded:size-[min(40dvh,340px)]">
-          {/* 진동과 같은 박자로 바깥에 고리가 퍼짐 (진동을 꺼도 화면으로 알 수 있게). 0.3초 진동은 화면에선 너무 빨라 0.6초 */}
+          {/* 가까울수록 바깥 고리가 빨리 퍼짐 (가까워짐 2초 · 가장 가까움 0.6초) */}
           {lv.every > 0 && (
             <span key={step.level} aria-hidden className="absolute inset-0 animate-roam-rip rounded-full border-[3px] border-white/75 opacity-0"
-              style={{ animationDuration: `${Math.max(lv.every, 600)}ms` }} />
+              style={{ animationDuration: `${lv.every}ms` }} />
           )}
           <svg viewBox="0 0 200 200" className="relative size-full -rotate-90">
             <circle cx="100" cy="100" r={R} fill="none" stroke="currentColor" strokeOpacity="0.22" strokeWidth="12" />
@@ -272,8 +261,8 @@ function Precision({ step, fullscreen }: { step: HandheldStep; fullscreen: boole
           </svg>
           <div className="absolute inset-0 grid place-items-center text-center">
             <div>
-              <div className="num text-fs34 leading-none font-bold">{step.rel_db === 0 ? "최고" : `${step.rel_db.toFixed(0)} dB`}</div>
-              <div className="mt-1.5 text-fs13 opacity-75">이번 순회 최고값 대비</div>
+              <div className="num text-fs22 leading-none font-bold">{step.rel_db === 0 ? "가장 강함" : `${step.rel_db.toFixed(0)} dB`}</div>
+              <div className="mt-1.5 text-fs13 opacity-75">이번 순회에서 가장 강했던 곳 대비</div>
             </div>
           </div>
         </div>
@@ -284,10 +273,7 @@ function Precision({ step, fullscreen }: { step: HandheldStep; fullscreen: boole
 
       <div className="mt-6 flex items-center gap-4">
         <RoundButton label="닫기" onClick={() => navigate({ to: "/" })}><X className="size-6" /></RoundButton>
-        <span className="flex-1 text-center text-sm opacity-80">{buzz ? lv.buzz : "진동 꺼짐"}, 좌석 옆 {step.dwell ?? 2}초</span>
-        <RoundButton label={buzz ? "진동 끄기" : "진동 켜기"} onClick={() => setBuzz((b) => !b)}>
-          {buzz ? <Vibrate className="size-6" /> : <VibrateOff className="size-6" />}
-        </RoundButton>
+        <span className="text-sm opacity-80">좌석마다 {step.dwell ?? 2}초씩 머무세요</span>
       </div>
     </section>
   )
@@ -397,8 +383,8 @@ function Result({ req, head, medians, best, rows, cols, phone, notice }: {
       {canResult && (
         <p className="mt-2 text-fs13 leading-snug text-fg-3">
           {req.level === 4
-            ? "2차에서도 못 찾았는데 신호가 계속되면 '미해결'로 기록되고 시험 후 사람이 검토합니다."
-            : "못 찾았는데 신호가 계속 잡히면 2차 수색(소지품, 책상, 다른 부위)을 요청하고, 이 결과는 학습에 쓰지 않습니다."}
+            ? "2차에서도 못 찾았는데 신호가 계속되면 '미해결'로 기록되고 시험 후 관리자가 검토합니다."
+            : "못 찾았는데 신호가 계속 잡히면 2차 수색(소지품, 책상, 다른 부위)을 요청합니다."}
         </p>
       )}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-danger">{err}</p>}

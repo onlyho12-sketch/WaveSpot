@@ -1,6 +1,6 @@
 """시험 세션 · 장비 점검 · 기준선 · 진행 제어."""
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.services.engine import engine
 from app.services.replay import SCENARIOS
@@ -10,6 +10,10 @@ router = APIRouter(tags=["exam"])
 
 class NewSession(BaseModel):
     name: str = "컴퓨터활용능력 2급"
+    date: str = Field("", pattern=r"^(\d{4}-\d{2}-\d{2})?$")  # 시험 날짜
+    start: str = Field("09:00", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # 시작 시각
+    end: str = Field("09:40", pattern=r"^([01]\d|2[0-3]):[0-5]\d$")  # 종료 시각 (같은 날)
+    place: str = Field("", max_length=40)  # 시험 장소
     scenario: str = "demo"
     rows: int = 4
     cols: int = 10
@@ -32,7 +36,11 @@ def scenarios():
 
 @router.post("/session")
 async def new_session(body: NewSession):
-    engine.new_session(body.name, body.scenario, body.rows, body.cols)
+    mins = lambda hm: int(hm[:2]) * 60 + int(hm[3:])  # noqa: E731
+    duration = mins(body.end) - mins(body.start)
+    if not 10 <= duration <= 300:
+        raise HTTPException(422, "종료 시각은 시작 시각보다 10분 이상, 5시간 이내로 늦어야 합니다.")
+    engine.new_session(body.name, body.scenario, body.rows, body.cols, body.date, body.start, body.place.strip(), duration)
     await engine.broadcast_status()
     return engine.status()
 

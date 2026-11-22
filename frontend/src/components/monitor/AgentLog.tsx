@@ -51,7 +51,7 @@ export function ModelUse({ calls, className }: { calls: string[]; className?: st
       <span className="num shrink-0 font-semibold text-fg-2">기기별 모델 {on.length}/{DEVICE_MODELS.length}</span>
       <span className="flex shrink-0 gap-0.5" aria-hidden>
         {DEVICE_MODELS.map((g) => (
-          <span key={g.name} title={`${g.name} ${on.includes(g) ? "부름" : "건너뜀"}`}
+          <span key={g.name} title={`${g.name} ${on.includes(g) ? "사용" : "건너뜀"}`}
             className={cn("size-2 rounded-[2px]", on.includes(g) ? "bg-fg-2" : "border border-line-strong")} />
         ))}
       </span>

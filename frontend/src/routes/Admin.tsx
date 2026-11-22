@@ -7,7 +7,7 @@
 // - 장애 · 공격 (v11 10장): 장애 대응 표 + 재현(검증 실험 7) · 장애 · 복구 기록 · 우회 · 해킹 대응(실험 8)
 // - 장비 · 보안: 장비 · 데이터 출처 · 보안 · 권한 · 기록 위변조 확인 · 접근 기록 · 개인정보 · 보관
 // 역할(감독관 · 관리자 · 감사)은 장애 재현 · 접근 기록 권한에 필요 · 장비 및 보안 탭의 보안 및 권한 패널에서 바꿈
-import { useQuery, useQueryClient } from "@tanstack/react-query"
+import { useQuery } from "@tanstack/react-query"
 import { Check, ChevronRight, Minus, RefreshCw } from "lucide-react"
 import { useMemo, useState } from "react"
 import { EventColumns, LadderBars, ModelCards } from "@/components/admin/charts"
@@ -16,10 +16,10 @@ import { FaultsTab, MODE, RoomEquipment, SecurityBoard, SelfCheckList } from "@/
 import { AgentLog, ModelUse } from "@/components/monitor/AgentLog"
 import { ChainPanel } from "@/components/monitor/SystemPanels"
 import { Button } from "@/components/ui/button"
-import { Panel, Shape, Status, Tag } from "@/components/ui/status"
-import { api, getRole, ROLE_NAME, setRole, type AgentEvent, type Role, type TrackedDevice } from "@/lib/api"
+import { GreenOkScope, Panel, Shape, Status, Tag, useGreenOk } from "@/components/ui/status"
+import { api, getRole, ROLE_NAME, type AgentEvent, type Role, type TrackedDevice } from "@/lib/api"
 import { useLive } from "@/lib/live"
-import { ALL_MODEL_KEYS, cn, isOpen, levelTone, MODEL_KEYS, NODE_PLACE, pct } from "@/lib/utils"
+import { ALL_MODEL_KEYS, cn, isOpen, levelTone, MODEL_KEYS, NODE_PLACE, pct, rangeName } from "@/lib/utils"
 
 const MODELS: string[] = [...MODEL_KEYS] // 기기별 판단 단계
 const ALL_MODELS: string[] = [...ALL_MODEL_KEYS] // 이상 감지 + 기기별
@@ -65,7 +65,7 @@ function flows(events: AgentEvent[]): Flow[] {
 type Tab = "overview" | "agent" | "faults" | "system"
 const TABS: { key: Tab; label: string }[] = [
   { key: "overview", label: "개요" },
-  { key: "agent", label: "AI 에이전트" },
+  { key: "agent", label: "에이전트" },
   { key: "faults", label: "비상 대응" },
   { key: "system", label: "시스템" },
 ]
@@ -73,9 +73,8 @@ let lastTab: Tab = "overview" // 다른 화면에 다녀와도 보던 탭 유지
 
 export function Admin() {
   const status = useLive((s) => s.status)
-  const qc = useQueryClient()
   const [tab, setTabState] = useState<Tab>(lastTab)
-  const [role, setR] = useState<Role>(getRole())
+  const role = getRole() // 로그인한 계정의 역할 (바꾸려면 로그아웃 후 다른 계정으로)
   const faultOn = (status?.health?.active.length ?? 0) > 0 || (status?.health?.mode ?? "normal") !== "normal"
 
   function setTab(t: Tab) {
@@ -83,13 +82,9 @@ export function Admin() {
     setTabState(t)
     window.scrollTo({ top: 0 })
   }
-  function changeRole(r: Role) {
-    setRole(r)
-    setR(r)
-    void qc.invalidateQueries()
-  }
 
   return (
+    <GreenOkScope>
     <div className="flex flex-col gap-3 medium:gap-4">
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <div role="tablist" aria-label="관리 화면" className="flex gap-1 overflow-x-auto rounded-lg border border-line bg-surface p-1">
@@ -106,23 +101,15 @@ export function Admin() {
       {tab === "overview" && <Overview onOpen={setTab} />}
       {tab === "agent" && <AgentTab />}
       {tab === "faults" && <FaultsTab />}
-      {tab === "system" && <SystemTab role={role} onRole={changeRole} />}
+      {tab === "system" && <SystemTab role={role} />}
     </div>
+    </GreenOkScope>
   )
 }
 
-function RoleSwitch({ role, onChange }: { role: Role; onChange: (r: Role) => void }) {
-  return (
-    <span className="flex items-center gap-2">
-      역할
-      <span role="radiogroup" aria-label="이 기기 역할" className="flex rounded-md border border-line-strong bg-surface p-0.5">
-        {(Object.keys(ROLE_NAME) as Role[]).map((r) => (
-          <button key={r} type="button" role="radio" aria-checked={role === r} onClick={() => onChange(r)}
-            className={cn("h-7 rounded-[5px] px-2.5 text-fs13 font-semibold", role === r ? "bg-fg text-white" : "text-fg-2 hover:bg-fg/5")}>{ROLE_NAME[r]}</button>
-        ))}
-      </span>
-    </span>
-  )
+/** 보안 및 권한 머리줄: 지금 로그인한 역할 (역할 전환 버튼은 로그인으로 바뀜) */
+function RoleNow({ role }: { role: Role }) {
+  return <span><span className="font-semibold text-fg-2">{ROLE_NAME[role]}</span> 계정으로 로그인</span>
 }
 
 /* ───────────── 개요 ───────────── */
@@ -136,7 +123,7 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
   const requests = useLive((s) => s.requests)
   const sessionId = status?.session?.id ?? null
   const start = status?.session?.exam_start_label ?? "09:00"
-  const duration = status?.session?.duration_min ?? clock?.duration_min ?? 100
+  const duration = status?.session?.duration_min ?? clock?.duration_min ?? 40
   const h = status?.health
   const nodes = status?.nodes ?? []
 
@@ -183,7 +170,7 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
           <div className="flex gap-1">
             {nodes.map((n) => (
               <span key={n.node_id} className={cn("num grid h-6 flex-1 place-items-center rounded text-fs11 font-bold",
-                n.status === "online" ? "bg-fg/[0.06] text-fg-2" : "border border-dashed border-danger bg-danger-soft text-danger")}>{n.node_id}</span>
+                n.status === "online" ? "bg-ok-soft text-ok" : "border border-dashed border-danger bg-danger-soft text-danger")}>{n.node_id}</span>
             ))}
           </div>
         </Tile>
@@ -202,12 +189,12 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
         </Tile>
         <Tile label="장애 및 복구" tone={faultSummary(h?.active, recs).tone} value={String(recs.length)} unit="건"
           sub={faultSummary(h?.active, recs).sub} onOpen={() => onOpen("faults")}>
-          <Meter parts={[{ v: recovered.length, cls: "bg-fg-3/45" }, { v: recs.length - recovered.length, cls: "bg-warn-fill" }]} total={recs.length} />
+          <Meter parts={[{ v: recovered.length, cls: "bg-ok" }, { v: recs.length - recovered.length, cls: "bg-warn-fill" }]} total={recs.length} />
         </Tile>
         <Tile label="모의 공격 탐지" tone={injected.length && caught.length < injected.length ? "warn" : "ok"}
           value={injected.length ? `${caught.length}/${injected.length}` : "0"} unit={injected.length ? undefined : "건"}
           sub={avgTook != null ? `평균 ${avgTook}초 만에 탐지` : `실제 탐지 ${runs.length - injected.length}건`} onOpen={() => onOpen("faults")}>
-          <Meter parts={[{ v: caught.length, cls: "bg-fg-3/45" }, { v: injected.length - caught.length, cls: "bg-warn-fill" }]} total={injected.length} />
+          <Meter parts={[{ v: caught.length, cls: "bg-ok" }, { v: injected.length - caught.length, cls: "bg-warn-fill" }]} total={injected.length} />
         </Tile>
       </div>
 
@@ -227,7 +214,7 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
             ]}
           />
         </Panel>
-        <Panel title="AI 에이전트 판단 기록" aside={<span className="num">{events.filter((e) => e.sim_time >= 0).length}건</span>} className="flex flex-col large:min-h-0" bodyClass="flex-1 px-4 py-3 large:min-h-0">
+        <Panel title="에이전트 판단 기록" aside={<span className="num">{events.filter((e) => e.sim_time >= 0).length}건</span>} className="flex flex-col large:min-h-0" bodyClass="flex-1 px-4 py-3 large:min-h-0">
           <EventColumns events={events} duration={duration} start={start} />
         </Panel>
         <Panel title="장비" aside={<More onClick={() => onOpen("system")} />} className="flex flex-col expanded:col-span-2 large:col-span-1 large:min-h-0" bodyClass="flex-1 large:min-h-0">
@@ -237,7 +224,7 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
                 <Status tone={n.status === "online" ? "ok" : "off"}><span className="font-semibold">수신기 {n.node_id}</span></Status>
                 <span className="text-fg-3">{NODE_PLACE[n.node_id]}</span>
                 <span className={cn("num ml-auto", n.status === "online" ? "text-fg-2" : "font-semibold text-danger")}>
-                  {n.status !== "online" ? "응답 없음" : n.rate != null ? `${n.rate}건/초` : "정상"}
+                  {n.status !== "online" ? "응답 없음" : n.rate != null && getRole() !== "auditor" ? `${n.rate}건/초` : "정상"}
                 </span>
               </li>
             ))}
@@ -255,7 +242,7 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
       </div>
 
       <div className="grid grid-cols-1 gap-3 medium:gap-4 expanded:grid-cols-2 large:min-h-0 large:flex-[4] large:grid-rows-[minmax(0,1fr)]">
-        <Panel title="최근 AI 에이전트 판단" aside={<More onClick={() => onOpen("agent")} />} className="flex flex-col large:min-h-0" bodyClass="large:min-h-0 large:flex-1 large:overflow-y-auto">
+        <Panel title="최근 에이전트 판단" aside={<More onClick={() => onOpen("agent")} />} className="flex flex-col large:min-h-0" bodyClass="large:min-h-0 large:flex-1 large:overflow-y-auto">
           <AgentLog events={events} limit={5} dense big />
         </Panel>
         {/* '부정행위 기기'는 판정처럼 읽혀서 피함 (수색 전 · 결과 판단은 감독관) → '의심' + 정렬 기준 */}
@@ -268,7 +255,7 @@ function Overview({ onOpen }: { onOpen: (t: Tab) => void }) {
                 <li key={d.device_id} className="grid grid-cols-[6.5rem_minmax(0,1fr)_3.75rem_5.5rem] items-center gap-3 px-4 py-3 large:grid-cols-[7.5rem_minmax(0,1fr)_4.5rem_8rem]">
                   <Status tone={levelTone(d.level)}><span className="text-fs15">{STATUS_NAME[d.status] ?? d.status}</span></Status>
                   <span className="truncate font-semibold">{d.kind}</span>
-                  <span className="num text-fg-2">{d.zone == null ? "-" : `${d.zone}구역`}</span>
+                  <span className="num text-fg-2">{d.zone == null ? "-" : rangeName(d.zone)}</span>
                   <ScoreMini score={d.score} />
                 </li>
               ))}
@@ -325,11 +312,11 @@ function AgentTab() {
             </>
           )}
         </Panel>
-        <Panel title="AI 모델 6개" aside={<span>기기마다 5개 + 교실 전체 1개 (이상 감지)</span>} bodyClass="p-3">
+        <Panel title="에이전트가 쓰는 AI 모델 6개" aside={<span>기기마다 5개 + 교실 전체 1개 (이상 감지)</span>} bodyClass="p-3">
           <ModelCards models={ALL_MODELS} byModel={st?.by_model ?? {}} total={st?.device_windows ?? 0} totals={{ 이상: st?.windows ?? 0 }} />
         </Panel>
       </div>
-      <Panel title={<span className="flex items-center gap-2"><Pulse on={live} />AI 에이전트 판단 기록</span>} aside={<ModelLegend />}>
+      <Panel title={<span className="flex items-center gap-2"><Pulse on={live} />에이전트 판단 기록</span>} aside={<ModelLegend />}>
         <div className="max-h-[520px] overflow-y-auto">
           <AgentLog events={events} showCalls />
         </div>
@@ -341,21 +328,21 @@ function AgentTab() {
 
 /* ───────────── 장비 · 보안 탭 ───────────── */
 
-function SystemTab({ role, onRole }: { role: Role; onRole: (r: Role) => void }) {
+function SystemTab({ role }: { role: Role }) {
   const status = useLive((s) => s.status)
   const sessionId = status?.session?.id ?? null
   return (
     <>
       <div className="grid grid-cols-1 gap-3 medium:gap-4 large:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
         <Panel title="장비 배치" bodyClass="p-4"
-          aside={status?.health?.checkpoint ? <span className="num">마지막 상태 저장 {status.health.checkpoint}</span> : undefined}>
-          <RoomEquipment status={status} />
+          aside={role !== "auditor" && status?.health?.checkpoint ? <span className="num">마지막 상태 저장 {status.health.checkpoint}</span> : undefined}>
+          <RoomEquipment status={status} detail={role !== "auditor"} />
         </Panel>
         <Panel title="시험 전 자가 점검">
           <SelfCheckList status={status} />
         </Panel>
       </div>
-      <SecurityBoard status={status} role={role} aside={<RoleSwitch role={role} onChange={onRole} />} />
+      <SecurityBoard status={status} role={role} aside={<RoleNow role={role} />} />
       <ChainPanel sessionId={sessionId} />
       <AccessPanel />
     </>
@@ -363,17 +350,17 @@ function SystemTab({ role, onRole }: { role: Role; onRole: (r: Role) => void }) 
 }
 
 /** 대응 단계 이름 (기기별 판단 과정 꼬리표와 같은 이름) */
-const LV_NAME = ["감시", "추가 관찰", "휴대형 접근", "정밀 수색", "2차 수색"]
+const LV_NAME = ["이상 없음", "추가 관찰", "휴대형 접근", "정밀 수색", "2차 수색"]
 
 /** 대응 단계 (설계안 '수색 강화 사다리') · 핵심만: 언제 올라가나 / 감독관 할 일 / 지금 몇 대 */
 const LADDER: { lv: number; tone: "ok" | "warn" | "danger"; when: string; todo: string }[] = [
   { lv: 0, tone: "ok", when: "허용 목록 밖 신호 없음", todo: "없음" },
   { lv: 1, tone: "warn", when: "위험 40~69점", todo: "없음 (에이전트가 30초 더 지켜봄)" },
-  { lv: 2, tone: "warn", when: "60점 이상 + 구역 확신, 또는 영상 통화나 사진 전송", todo: "휴대형 수신기로 구역 순회" },
+  { lv: 2, tone: "warn", when: "60점 이상 + 위치 확신, 또는 영상 통화나 사진 전송", todo: "휴대형 수신기로 수색 범위 순회" },
   { lv: 3, tone: "danger", when: "70점 이상 30초 연속 + 근거 2개 이상", todo: "의심 좌석을 금속탐지기로 수색" },
 ]
-const LADDER_TOP: Record<string, string> = { ok: "border-t-line-strong", warn: "border-t-warn-fill", danger: "border-t-danger" }
-const LADDER_TAG: Record<string, string> = { ok: "bg-fg-3", warn: "bg-warn-fill", danger: "bg-danger" }
+const LADDER_TOP: Record<string, string> = { ok: "border-t-ok", warn: "border-t-warn-fill", danger: "border-t-danger" }
+const LADDER_TAG: Record<string, string> = { ok: "bg-ok", warn: "bg-warn-fill", danger: "bg-danger" }
 
 function LadderPanel() {
   const devices = useLive((s) => s.devices)
@@ -405,27 +392,48 @@ function LadderPanel() {
   )
 }
 
-/** 접근 기록 (관리자 · 감사만) · 자동 갱신하지 않음 (열람도 기록에 남으므로) */
+/** 접근 기록에 남는 API 주소 → 사람이 읽는 이름 */
+const ACCESS_TARGET: [RegExp, string][] = [
+  [/^\/login$/, "로그인"], [/^\/report\/export$/, "리포트 내보내기"], [/^\/chain\/verify$/, "기록 위변조 확인"],
+  [/^\/requests\/\d+\/start$/, "순회 시작"], [/^\/requests\/\d+\/result$/, "수색 결과 입력"], [/^\/requests(\/\d+)?$/, "수색 요청"],
+  [/^\/events$/, "판단 기록"], [/^\/notes$/, "감독관 의견"], [/^\/allowlist$/, "허용 목록"], [/^\/settings\/thresholds$/, "기준값"],
+  [/^\/faults\/\w+$/, "장애 훈련"], [/^\/faults$/, "장애 기록"], [/^\/attacks\/\w+$/, "공격 훈련"], [/^\/attacks$/, "공격 탐지 기록"],
+  [/^\/access$/, "접근 기록"], [/^\/devices$/, "의심 기기 목록"], [/^\/session\/baseline$/, "허용 기기 등록"], [/^\/session\/start$/, "감지 시작"],
+  [/^\/session\/control$/, "재생 속도, 일시 정지"], [/^\/session$/, "새 시험 만들기"],
+]
+const accessTarget = (path: string) => {
+  const p = path.replace(/^\/api/, "")
+  return ACCESS_TARGET.find(([re]) => re.test(p))?.[1] ?? p
+}
+
+/** 접근 기록 (관리자 · 검토자만) · 자동 갱신하지 않음 (열람도 기록에 남으므로)
+ *  화면이 자동으로 불러오는 '열람'이 대부분이라 기본은 변경 · 로그인 · 내보내기 · 거부만 */
 function AccessPanel() {
   const q = useQuery({ queryKey: ["access", getRole()], queryFn: api.access, retry: false, refetchOnWindowFocus: false })
-  const rows = q.data ?? []
+  const [reads, setReads] = useState(false)
+  const all = q.data ?? []
+  const readN = all.filter((r) => r.action === "열람" && r.allowed).length
+  const rows = reads ? all : all.filter((r) => !(r.action === "열람" && r.allowed))
   const denied = rows.filter((r) => !r.allowed).length
   const byRole = Object.entries(rows.reduce<Record<string, number>>((a, r) => ({ ...a, [r.role_name]: (a[r.role_name] ?? 0) + 1 }), {}))
   return (
     <Panel title="접근 기록" aside={
-      <Button size="sm" variant="subtle" onClick={() => q.refetch()} disabled={q.isFetching}><RefreshCw className={cn(q.isFetching && "animate-spin")} />새로고침</Button>
+      <span className="flex items-center gap-1">
+        {readN > 0 && <Button size="sm" variant="subtle" onClick={() => setReads((v) => !v)}>{reads ? "열람 기록 숨기기" : `열람 기록도 보기 (${readN})`}</Button>}
+        <Button size="sm" variant="subtle" onClick={() => q.refetch()} disabled={q.isFetching}><RefreshCw className={cn(q.isFetching && "animate-spin")} />새로고침</Button>
+      </span>
     }>
       {q.isError ? (
-        <p className="px-4 py-6 text-center text-sm text-fg-3">{(q.error as Error).message}. 위 '보안 및 권한'에서 역할을 관리자나 검토자로 바꾸세요.</p>
+        <p className="px-4 py-6 text-center text-sm text-fg-3">{(q.error as Error).message}. 관리자나 검토자 계정으로 로그인하면 볼 수 있습니다.</p>
       ) : rows.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-fg-3">기록 없음</p>
+        <p className="px-4 py-6 text-center text-sm text-fg-3">{all.length ? "변경, 로그인, 내보내기, 거부 기록 없음 (열람만 있음)" : "기록 없음"}</p>
       ) : (
         <>
         <div className="flex flex-wrap items-center gap-x-5 gap-y-2 border-b border-line px-4 py-3 text-fs13">
           <span className="num"><b className="text-fs20">{rows.length}</b> 건 <span className="text-fg-3">(최근)</span></span>
           <Status tone="ok">허용 {rows.length - denied}</Status>
           <Status tone={denied ? "off" : "neutral"}><span className={cn(denied > 0 && "font-semibold text-danger")}>거부 {denied}</span></Status>
-          <Meter className="w-36" total={rows.length} parts={[{ v: rows.length - denied, cls: "bg-fg-3/45" }, { v: denied, cls: "bg-danger" }]} />
+          <Meter className="w-36" total={rows.length} parts={[{ v: rows.length - denied, cls: "bg-ok" }, { v: denied, cls: "bg-danger" }]} />
           <span className="num ml-auto text-fg-3">{byRole.map(([k, v]) => `${k} ${v}`).join(", ")}</span>
         </div>
         <div className="max-h-[300px] overflow-auto">
@@ -442,10 +450,10 @@ function AccessPanel() {
             <tbody className="divide-y divide-line">
               {rows.map((r) => (
                 <tr key={r.id} className={cn(!r.allowed && "bg-danger-soft/50")}>
-                  <td className="num px-4 py-2 text-fg-2">{new Date(r.at).toLocaleTimeString("ko-KR", { hour12: false })}</td>
+                  <td className="num px-4 py-2 text-fg-2" title="실제 시각">{new Date(r.at).toLocaleTimeString("en-GB", { hour12: false })}</td>
                   <td className="py-2">{r.role_name}</td>
                   <td className="py-2">{r.action}</td>
-                  <td className="num py-2 text-fs13 text-fg-2">{r.method} {r.path.replace(/^\/api/, "")}</td>
+                  <td className="py-2 text-fg-2" title={`${r.method} ${r.path}`}>{accessTarget(r.path)}</td>
                   <td className="px-4 py-2 text-right">{r.allowed ? <Status tone="ok">허용</Status> : <Status tone="off"><span className="font-semibold text-danger">거부 {r.status}</span></Status>}</td>
                 </tr>
               ))}
@@ -497,8 +505,8 @@ function DeviceTable({ devices, allowlist }: { devices: TrackedDevice[]; allowli
                 <th className="py-2 font-semibold">기기</th>
                 <th className="py-2 font-semibold">종류 추정</th>
                 <th className="w-44 py-2 font-semibold">위험 점수</th>
-                <th className="py-2 font-semibold">추정 구역</th>
-                <th className="px-4 py-2 font-semibold">다음 후보</th>
+                <th className="py-2 font-semibold">추정 위치</th>
+                <th className="px-4 py-2 font-semibold">2순위 위치</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-line">
@@ -506,11 +514,11 @@ function DeviceTable({ devices, allowlist }: { devices: TrackedDevice[]; allowli
               {rows.map((d) => (
                 <tr key={d.device_id}>
                   <td className="px-4 py-2.5"><Status tone={levelTone(d.level)}>{STATUS_NAME[d.status] ?? d.status}</Status></td>
-                  <td className="num py-2.5 text-fg-2">{d.device_id}{d.hold && <Tag className="ml-2">기기 연결 보류</Tag>}</td>
+                  <td className="num py-2.5 text-fg-2">{d.device_id}{d.hold && <Tag className="ml-2">같은 기기인지 확인 중</Tag>}</td>
                   <td className="py-2.5">{d.kind}</td>
                   <td className="py-2.5 pr-4"><ScoreMini score={d.score} /></td>
-                  <td className="num py-2.5">{d.zone == null ? <span className="text-danger">위치 추정 중지</span> : <>{d.zone}구역 <span className="text-fg-3">{pct(d.zone_prob)}</span></>}</td>
-                  <td className="num px-4 py-2.5 text-fg-2">{d.zone2 ? <>{d.zone2}구역 <span className="text-fg-3">{pct(d.zone2_prob)}</span></> : "-"}</td>
+                  <td className="num py-2.5">{d.zone == null ? <span className="text-danger">위치 추정 중지</span> : <>{rangeName(d.zone)} <span className="text-fg-3">{pct(d.zone_prob)}</span></>}</td>
+                  <td className="num px-4 py-2.5 text-fg-2">{d.zone2 ? <>{rangeName(d.zone2)} <span className="text-fg-3">{pct(d.zone2_prob)}</span></> : "-"}</td>
                 </tr>
               ))}
             </tbody>
@@ -534,7 +542,7 @@ function FlowRow({ f, kind, dev }: { f: Flow; kind?: string; dev?: TrackedDevice
         <span className="num text-xs text-fg-3">{f.id}</span>
         {dev && <Tag tone={levelTone(dev.level)}>Lv{dev.level} {LV_NAME[dev.level]}</Tag>}
         {dev && <span className="num text-fs13 text-fg-2">위험 {dev.score}점</span>}
-        {ended && <Tag>확인 끝 (Lv0 감시)</Tag>}
+        {ended && <Tag>확인 끝 (Lv0 이상 없음)</Tag>}
         <span className="num ml-auto text-xs text-fg-3">{f.last.clock}</span>
       </div>
 
@@ -545,9 +553,9 @@ function FlowRow({ f, kind, dev }: { f: Flow; kind?: string; dev?: TrackedDevice
           const current = i === lastIdx && !ended
           return (
             <li key={s.name} className="relative min-w-0 pr-3">
-              {i < 2 && <span className={cn("absolute top-[13px] right-0 left-7 h-0.5", reached[i + 1] ? "bg-fg-2" : "border-t-2 border-dashed border-line-strong")} />}
+              {i < 2 && <span className={cn("absolute top-[13px] right-0 left-7 h-0.5", reached[i + 1] ? "bg-ok" : "border-t-2 border-dashed border-line-strong")} />}
               <span className={cn("relative z-10 grid size-7 place-items-center rounded-full border-2 text-xs font-bold",
-                current ? "border-fg bg-surface text-fg" : done ? "border-fg-2 bg-fg-2 text-white" : "border-dashed border-line-strong bg-surface text-fg-3")}>
+                current ? "border-fg bg-surface text-fg" : done ? "border-ok bg-ok text-white" : "border-dashed border-line-strong bg-surface text-fg-3")}>
                 {done && !current ? <Check className="size-3.5" strokeWidth={3} /> : !done ? <Minus className="size-3.5" /> : i + 1}
               </span>
               <div className={cn("mt-1 text-fs14 font-semibold", !done && "text-fg-3")}>{s.name}{s.n > 1 ? <span className="num ml-1 font-medium text-fg-3">{s.n}회</span> : null}</div>
@@ -590,7 +598,7 @@ function WaitDecision({ gain, loss }: { gain: number; loss: number }) {
 function ModelLegend() {
   return (
     <span className="hidden items-center gap-3 text-xs medium:flex">
-      <span className="flex items-center gap-1"><span className="size-2 rounded-[2px] bg-fg-2" />부른 AI 모델</span>
+      <span className="flex items-center gap-1"><span className="size-2 rounded-[2px] bg-fg-2" />사용한 AI 모델</span>
       <span className="flex items-center gap-1"><span className="size-2 rounded-[2px] border border-line-strong" />건너뜀</span>
     </span>
   )
@@ -600,7 +608,7 @@ function ScoreMini({ score }: { score: number }) {
   return (
     <div className="flex items-center gap-2">
       <span className="relative h-2 flex-1 rounded-sm bg-subtle">
-        <span className={cn("absolute inset-y-0 left-0 rounded-sm", score >= 70 ? "bg-danger" : score >= 40 ? "bg-warn-fill" : "bg-fg-3")} style={{ width: `${Math.min(100, score)}%` }} />
+        <span className={cn("absolute inset-y-0 left-0 rounded-sm", score >= 70 ? "bg-danger" : score >= 40 ? "bg-warn-fill" : "bg-ok")} style={{ width: `${Math.min(100, score)}%` }} />
         <span className="absolute -inset-y-1 left-[70%] w-px bg-fg" />
       </span>
       <span className="num w-7 text-right font-semibold">{score}</span>
@@ -609,8 +617,9 @@ function ScoreMini({ score }: { score: number }) {
 }
 
 export function Pulse({ on }: { on: boolean }) {
+  const green = useGreenOk()
   return (
     // 움직이는 효과 없이 점 하나: 작동 중 = 진한 회색 채움, 멈춤 = 빈 원
-    <span className={cn("inline-flex size-2.5 shrink-0 rounded-full", on ? "bg-fg-2" : "border-[1.5px] border-fg-3")} />
+    <span className={cn("inline-flex size-2.5 shrink-0 rounded-full", on ? (green ? "bg-ok" : "bg-fg-2") : "border-[1.5px] border-fg-3")} />
   )
 }

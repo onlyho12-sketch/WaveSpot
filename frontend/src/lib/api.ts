@@ -63,7 +63,7 @@ export type Clock = {
 }
 
 export type Status = {
-  session: { id: number; name: string; rows: number; cols: number; state: Clock["state"]; scenario: string; exam_start_label: string; duration_min: number } | null
+  session: { id: number; name: string; rows: number; cols: number; state: Clock["state"]; scenario: string; exam_date: string; place: string; exam_start_label: string; duration_min: number } | null
   source: "replay" | "mqtt"
   simulated: boolean
   stats: Stats | null
@@ -79,7 +79,7 @@ export type Status = {
 // rate 최근 10초 초당 받은 신호 · heard 감지된 기기 수 · skew_ms 서버와 시각 차 · fw_ok 펌웨어 서명 · cert_ok 인증서
 export type Node = { node_id: string; status: string; last_seen: string | null; rate: number | null; heard: number | null; skew_ms?: number; fw_ok?: boolean; cert_ok?: boolean }
 
-/** 설계안 v11 10장 · 단계적 축소: normal → degraded(수신기 3/4) → no_location(2대 이상 끊김) · recovering(서버 재시작) · manual(망 장애 = 감시 중단) */
+/** 설계안 v11 10장 · 단계적 축소: normal → degraded(수신기 3/4) → no_location(2대 이상 끊김) · recovering(서버 재시작) · manual(망 장애 = 감지 중단) */
 export type Health = {
   mode: "normal" | "degraded" | "no_location" | "recovering" | "manual"
   nodes_ok: number
@@ -130,22 +130,41 @@ export type HandheldStep = { request_id: number; zone: number; zones?: number[];
 export type HandheldDone = { request_id: number; done: true; best_seat: number | null; seat_medians: Record<string, number> }
 export type Handheld = { step: HandheldStep | null; done: HandheldDone | null }
 
-/** 이 기기에서 쓰는 역할 (역할별 권한 · 접근 기록). 프로토타입은 관리 화면에서 바꿈 · 실기기는 로그인으로 */
-let role: Role = "supervisor"
+/** 로그인 상태 (토큰 · 아이디 · 역할). 역할은 계정으로 정해지고 서버도 토큰으로 확인함 */
+export type Session = { token: string; user: string; role: Role }
+const AUTH_KEY = "wavespot.auth"
+let session: Session | null = null
 try {
-  const r = localStorage.getItem("wavespot.role")
-  if (r === "admin" || r === "auditor" || r === "supervisor") role = r
+  const raw = localStorage.getItem(AUTH_KEY)
+  const s = raw ? (JSON.parse(raw) as Session) : null
+  if (s && s.token && (s.role === "admin" || s.role === "auditor" || s.role === "supervisor")) session = s
 } catch {
-  /* 저장소를 못 쓰면 감독관 */
+  /* 저장소를 못 쓰면 매번 로그인 */
 }
-export const getRole = () => role
-export function setRole(r: Role) {
-  role = r
+const authListeners = new Set<() => void>()
+export const getSession = () => session
+/** 로그인 전에는 부르지 않음 (화면은 로그인 뒤에만 그려짐) */
+export const getRole = (): Role => session?.role ?? "supervisor"
+export function onAuthChange(fn: () => void) {
+  authListeners.add(fn)
+  return () => void authListeners.delete(fn)
+}
+function setSession(s: Session | null) {
+  session = s
   try {
-    localStorage.setItem("wavespot.role", r)
+    if (s) localStorage.setItem(AUTH_KEY, JSON.stringify(s))
+    else localStorage.removeItem(AUTH_KEY)
   } catch {
     /* 무시 */
   }
+  authListeners.forEach((f) => f())
+}
+export async function login(username: string, password: string) {
+  const r = await call<{ token: string; user: string; role: Role }>("POST", "/login", { username, password })
+  setSession({ token: r.token, user: r.user, role: r.role })
+}
+export function logout() {
+  if (session) setSession(null)
 }
 
 /** status 0 = 서버에 닿지 않음 (망 · 서버 끊김) */
@@ -162,13 +181,14 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
   try {
     res = await fetch(`/api${path}`, {
       method,
-      headers: { "X-WaveSpot-Role": role, ...(body ? { "Content-Type": "application/json" } : {}) },
+      headers: { ...(session ? { Authorization: `Bearer ${session.token}` } : {}), ...(body ? { "Content-Type": "application/json" } : {}) },
       body: body ? JSON.stringify(body) : undefined,
     })
   } catch {
     throw new ApiError("서버에 연결할 수 없습니다", 0)
   }
   if (!res.ok) {
+    if (res.status === 401 && path !== "/login") logout() // 토큰 만료 · 서버 키 바뀜 -> 로그인 화면으로
     const detail = await res.json().catch(() => ({}))
     throw new ApiError(detail.detail ?? `서버 응답 오류 (${res.status})`, res.status)
   }
@@ -178,7 +198,7 @@ async function call<T>(method: string, path: string, body?: unknown): Promise<T>
 export const api = {
   status: () => call<Status>("GET", "/status"),
   scenarios: () => call<{ id: string; title: string }[]>("GET", "/scenarios"),
-  newSession: (b: { name: string; scenario: string }) => call<Status>("POST", "/session", b),
+  newSession: (b: { name: string; date: string; start: string; end: string; place: string; scenario: string }) => call<Status>("POST", "/session", b),
   baseline: () => call<Status & { added: { device_id: string; label: string }[] }>("POST", "/session/baseline"),
   start: () => call<Status>("POST", "/session/start"),
   control: (b: { action: "pause" | "resume"; speed?: number }) => call<Status>("POST", "/session/control", b),
@@ -199,7 +219,7 @@ export const api = {
   verifyChain: () => call<ChainCheck>("GET", "/chain/verify"),
   access: () => call<AccessRow[]>("GET", "/access?limit=80"),
   exportReport: async () => {
-    const res = await fetch("/api/report/export", { headers: { "X-WaveSpot-Role": role } })
+    const res = await fetch("/api/report/export", { headers: session ? { Authorization: `Bearer ${session.token}` } : {} })
     if (!res.ok) throw new ApiError(`내보내기 실패 (${res.status})`, res.status)
     return res.blob()
   },

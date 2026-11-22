@@ -2,7 +2,7 @@
 // 배치: 왼쪽 어두운 감독실 = 상단 정보 + 상태별 카운터 + 좌석 배치도 + 교시 타임라인
 //                          오른쪽 '에이전트 무선신호 감지' 패널 = 에이전트가 무선 신호로 찾은 반입 금지 기기 카드 목록 (없으면 '이상 없음' 한 장)
 // 휴대폰: 에이전트 무선신호 감지가 먼저, 아래에 작은 감독실
-// v11 10장: 시스템이 멈추면 '이상 없음'이 아니라 '감시 중단 · 복구 중 · 위치 추정 중지'를 크게 보여 줌
+// v11 10장: 시스템이 멈추면 '이상 없음'이 아니라 '감지 중단 · 복구 중 · 위치 추정 중지'를 크게 보여 줌
 //           허용 목록은 시험이 시작되면 잠김 (입실 후 나타난 기기는 등록 불가) → 시험 중 '허용 목록 추가' 메뉴 없음
 import { Link, useNavigate } from "@tanstack/react-router"
 import { ChevronRight, ClipboardCheck, Eye, FileText, Footprints, MapPinOff, RefreshCw, ShieldCheck, WifiOff } from "lucide-react"
@@ -16,10 +16,11 @@ import { Button } from "@/components/ui/button"
 import { MenuItem } from "@/components/ui/menu"
 import { useChangeCount } from "@/lib/motion"
 import { Panel, Shape } from "@/components/ui/status"
-import type { AgentEvent, Clock, Health, SearchRequest, TrackedDevice } from "@/lib/api"
+import { getRole, type AgentEvent, type Clock, type Health, type SearchRequest, type TrackedDevice } from "@/lib/api"
+import { canRecord, canSee } from "@/lib/roles"
 import { useLive } from "@/lib/live"
 import { useIsPhone } from "@/lib/useIsPhone"
-import { clockOf, cn, isOpen, type Tone } from "@/lib/utils"
+import { clockOf, cn, dateLabel, isOpen, type Tone } from "@/lib/utils"
 
 /** 기기가 처음 잡힌 뒤 지난 시간 → "40초 지속" · "3분 지속" */
 function lasting(events: AgentEvent[], deviceId: string, now: number) {
@@ -30,7 +31,7 @@ function lasting(events: AgentEvent[], deviceId: string, now: number) {
   return s < 60 ? `${s}초 지속` : `${Math.floor(s / 60)}분 지속`
 }
 
-const evidenceCount = (r: SearchRequest) => r.evidence.filter((e) => e.label !== "조사 기록" && e.label !== "대략 구역").length
+const evidenceCount = (r: SearchRequest) => r.evidence.filter((e) => e.label !== "조사 기록" && e.label !== "추정 위치").length
 
 export function Monitor() {
   const status = useLive((s) => s.status)
@@ -52,7 +53,7 @@ export function Monitor() {
   const start = session?.exam_start_label ?? "09:00"
   const now = clock?.t ?? 0
 
-  // 구역 머리 상태 문구: 관찰 중 · 18초 지속 / 수색 구역 · 근거 4개
+  // 범위 머리 상태 문구: 관찰 중 · 18초 지속 / 수색 구역 · 근거 4개
   const zones = useMemo<ZoneMark[]>(() => {
     const z: ZoneMark[] = []
     for (const r of open) {
@@ -87,11 +88,12 @@ export function Monitor() {
     const r = open.find((q) => q.zone === z || q.zone2 === z)
     if (!r) return null
     const goRoam = (id: number) => navigate({ to: "/roam/$id", params: { id: String(id) } })
+    const rec = canRecord(getRole()) // 순회 · 결과 입력은 감독관만 (관리자는 근거만 봄)
     return (
       <>
-        <MenuItem onClick={() => goRoam(r.id)}><Footprints />{r.state === "searching" ? "순회 화면" : "휴대형 접근"}</MenuItem>
+        {rec && <MenuItem onClick={() => goRoam(r.id)}><Footprints />{r.state === "searching" ? "순회 화면" : "휴대형 접근"}</MenuItem>}
         <MenuItem onClick={() => setSheet(r.id)}><FileText />근거 보기</MenuItem>
-        {r.level >= 3 && r.suspect_seat && <MenuItem onClick={() => goRoam(r.id)}><ClipboardCheck />결과 입력</MenuItem>}
+        {rec && r.level >= 3 && r.suspect_seat && <MenuItem onClick={() => goRoam(r.id)}><ClipboardCheck />결과 입력</MenuItem>}
       </>
     )
   }
@@ -100,26 +102,26 @@ export function Monitor() {
     return (
       <Panel className="mx-auto mt-6 max-w-xl medium:mt-10" bodyClass="p-6 medium:p-8">
         <h1 className="text-2xl font-bold">시험 시작 전</h1>
-        <p className="mt-2 text-fg-2">{session.state === "setup" ? "장비 확인과 기준선을 마친 뒤 시작하세요." : "기준선 완료. 시험을 시작하세요."}</p>
+        {session.state === "setup" && <p className="mt-2 text-fg-2">자가 점검과 허용 기기 등록을 마친 뒤 시작하세요.</p>}
         <Button asChild size="lg" className="mt-6"><Link to="/setup">준비 화면으로 <ChevronRight /></Link></Button>
       </Panel>
     )
   }
 
   const watching = devices.filter((d) => d.level === 1).length
-  const duration = clock?.duration_min ?? session?.duration_min ?? 100
+  const duration = clock?.duration_min ?? session?.duration_min ?? 40
 
   return (
     // 태블릿 가로 이상: 페이지 스크롤 없이 한 화면 (창 높이 - 위쪽 줄(배너 포함) - 본문 여백)
     //   오른쪽 칸: 요청 카드가 먼저 자리를 잡고, 최근 판단은 남은 높이만큼 (넘치면 그 칸 안에서만 스크롤)
     <div className="grid gap-3 medium:gap-4 expanded:h-[calc(100dvh-var(--shell-top,57px)-2rem)] expanded:min-h-[520px] expanded:grid-cols-[minmax(0,1fr)_360px] expanded:grid-rows-[minmax(0,1fr)] large:grid-cols-[minmax(0,1fr)_400px]">
-      {/* 에이전트 무선신호 감지 패널 */}
+      {/* 에이전트 감지 패널 */}
       <aside className="flex flex-col gap-3 medium:gap-4 expanded:order-2 expanded:min-h-0">
         <section className="overflow-hidden rounded-lg border border-line bg-surface expanded:min-h-0 expanded:overflow-y-auto">
           <header className="flex min-h-14 items-center gap-2 border-b border-line bg-surface px-4 py-2 expanded:sticky expanded:top-0 expanded:z-10">
             <div className="min-w-0">
               <h2 className="flex items-center gap-2 text-fs15 leading-tight font-semibold">
-                에이전트 무선신호 감지
+                에이전트 감지
                 {open.length > 0 && <span className="num grid h-5 min-w-5 place-items-center rounded-full bg-danger px-1.5 text-xs font-bold text-white">{open.length}</span>}
               </h2>
               <p className="truncate text-fs12 text-fg-3">무선 신호로 찾은 반입 금지 기기</p>
@@ -148,7 +150,7 @@ export function Monitor() {
           )}
         </section>
 
-        {/* 시각순 판단 기록 (Cellbusters · Verkada · Talview: 감시 화면 한쪽에 늘 알림 목록) · 휴대폰은 좌석도가 먼저라 뺌 */}
+        {/* 시각순 판단 기록 (Cellbusters · Verkada · Talview: 감독 화면 한쪽에 늘 알림 목록) · 휴대폰은 좌석도가 먼저라 뺌 */}
         {!phone && (
           <Panel title="최근 에이전트 판단" aside={<Link to="/log" className="flex items-center gap-0.5 text-fs13 font-semibold text-fg-2 hover:text-fg">전체 기록<ChevronRight className="size-4" /></Link>}
             className="expanded:flex expanded:min-h-[7rem] expanded:flex-1 expanded:flex-col" bodyClass="expanded:min-h-0 expanded:flex-1 expanded:overflow-y-auto">
@@ -162,9 +164,11 @@ export function Monitor() {
         <header className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-4 medium:px-5">
           <div className="min-w-0">
             <h2 className="text-fs17 font-bold">좌석 배치 ({(session?.rows ?? 4) * (session?.cols ?? 10)}석)</h2>
-            <div className="num mt-0.5 text-fs13 text-fg-3">{start} ~ {clockOf(duration * 60, start)} ({duration}분)</div>
+            <div className="num mt-0.5 text-fs13 text-fg-3">
+              {[dateLabel(session?.exam_date), `${start} ~ ${clockOf(duration * 60, start)} (${duration}분)`, session?.place].filter(Boolean).join(", ")}
+            </div>
           </div>
-          {open.length > 0 && (
+          {open.length > 0 && canRecord(getRole()) && (
             <Button asChild size="sm" className="ml-auto bg-brand-soft text-brand hover:bg-brand-soft/70">
               <Link to="/roam"><Footprints />순회 화면</Link>
             </Button>
@@ -232,7 +236,7 @@ function StatusCard({ watching }: { watching: boolean }) {
       <Icon className={cn("size-5 shrink-0", watching ? "text-warn" : "text-fg-3")} strokeWidth={2.2} />
       <div className="min-w-0">
         <div className={cn("text-fs15 leading-tight font-semibold", watching ? "text-warn" : "text-fg")}>{watching ? "관찰 중" : "이상 없음"}</div>
-        <div className="text-fs13 text-fg-3">{watching ? "할 일 없음. 자동으로 더 확인하는 중" : "반입 금지 기기 신호 없음"}</div>
+        <div className="text-fs13 text-fg-3">{watching ? "의심 신호를 지켜보는 중, 아직 조치 필요 없음" : "반입 금지 기기 신호 없음"}</div>
       </div>
     </div>
   )
@@ -241,7 +245,7 @@ function StatusCard({ watching }: { watching: boolean }) {
 /** 자동 탐지가 멈추거나 줄었을 때 '이상 없음' 대신 보이는 카드 (v11 10장 · 해킹 · 장애 ≠ 이상 없음) */
 function HealthCard({ health }: { health: Health }) {
   const c = {
-    manual: { Icon: WifiOff, bg: "bg-danger", title: "감시 중단", sub: "시험장 망 끊김. 순회와 금속탐지기로 직접 감독하세요" },
+    manual: { Icon: WifiOff, bg: "bg-danger", title: "감지 중단", sub: "시험장 망 끊김. 순회와 금속탐지기로 직접 감독하세요" },
     recovering: { Icon: RefreshCw, bg: "bg-warn-fill", title: "복구 중", sub: "현장 서버 재시작. 저장된 상태로 곧 이어서 판단" },
     no_location: { Icon: MapPinOff, bg: "bg-danger", title: "위치 추정 중지", sub: `수신기 ${health.nodes_ok}/4. 반입 금지 기기가 있는지만 판단하니 휴대형으로 교실 전체를 순회하세요` },
   }[health.mode as "manual" | "recovering" | "no_location"]
@@ -261,12 +265,20 @@ function HealthCard({ health }: { health: Health }) {
 function AgentPulse({ devices, clock, last }: { devices: TrackedDevice[]; clock: Clock | null; last: string | null }) {
   const live = clock?.state === "running" && !clock.paused
   const n = devices.length
-  return (
-    <Link to="/admin" title={n > 0 ? `신호 ${n}개 확인 중` : "새 신호 없음"}
-      className="ml-auto flex items-center gap-2 rounded-md px-2 py-1 text-fs13 text-fg-3 hover:bg-subtle">
+  const title = n > 0 ? `신호 ${n}개 확인 중` : "새 신호 없음"
+  const body = (
+    <>
       <Pulse on={live} />
       <span className="font-semibold text-fg-2">{live ? "작동 중" : clock?.paused ? "일시 정지" : "대기"}</span>
       {last && <span className="num hidden medium:inline">{last.slice(0, 5)}</span>}
+    </>
+  )
+  // 관리 화면을 볼 수 없는 계정(감독관)은 눌러도 갈 곳이 없으므로 표시만
+  if (!canSee(getRole(), "/admin"))
+    return <div title={title} className="ml-auto flex items-center gap-2 px-2 py-1 text-fs13 text-fg-3">{body}</div>
+  return (
+    <Link to="/admin" title={title} className="ml-auto flex items-center gap-2 rounded-md px-2 py-1 text-fs13 text-fg-3 hover:bg-subtle">
+      {body}
       <ChevronRight className="size-4 shrink-0" />
     </Link>
   )

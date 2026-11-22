@@ -6,7 +6,7 @@ const PACKAGES = ["numpy", "scipy", "scikit-learn", "joblib", "sqlalchemy", "sql
 
 type Msg =
   | { type: "http"; id: number; method: string; path: string; query: string; headers: [string, string][]; body: ArrayBuffer | null }
-  | { type: "ws-open"; cid: number }
+  | { type: "ws-open"; cid: number; query: string }
   | { type: "ws-send"; cid: number; text: string }
   | { type: "ws-close"; cid: number }
 
@@ -65,7 +65,7 @@ self.onmessage = async (e: MessageEvent<Msg>) => {
       post({ type: "http", id: m.id, status: 500, headers: [["content-type", "application/json"]], body }, [body.buffer])
     }
   } else if (m.type === "ws-open") {
-    web.ws_open(m.cid, (cid: number, kind: string, val: unknown) => post({ type: "ws", cid, kind, val: val ?? null }))
+    web.ws_open(m.cid, (cid: number, kind: string, val: unknown) => post({ type: "ws", cid, kind, val: val ?? null }), m.query)
   } else if (m.type === "ws-send") {
     web.ws_send(m.cid, m.text)
   } else if (m.type === "ws-close") {

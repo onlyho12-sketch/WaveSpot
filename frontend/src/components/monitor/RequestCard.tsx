@@ -11,16 +11,17 @@ import { LadderFlow } from "@/components/monitor/LadderFlow"
 import { Button } from "@/components/ui/button"
 import { Sheet } from "@/components/ui/sheet"
 import { Tag, Tracker } from "@/components/ui/status"
-import { api, type Evidence, type SearchRequest } from "@/lib/api"
+import { api, getRole, type Evidence, type SearchRequest } from "@/lib/api"
 import { patchRequest, useLive } from "@/lib/live"
+import { canRecord } from "@/lib/roles"
 import { useChangeCount, useCountUp, useFreshRequest } from "@/lib/motion"
-import { clockOf, cn, deviceSeen, DONE_LABEL, isOpen } from "@/lib/utils"
+import { clockOf, cn, deviceSeen, DONE_LABEL, isOpen, rangeName } from "@/lib/utils"
 
 const TITLE: Record<number, string> = { 2: "휴대형 접근 요청", 3: "정밀 수색 요청", 4: "2차 수색 요청" }
 export const requestTitle = (r: SearchRequest) => TITLE[r.level] ?? "요청"
-export const target = (r: SearchRequest) => (r.suspect_seat && r.level >= 3 ? `${r.suspect_seat}번 좌석` : `${r.zone}구역`)
+export const target = (r: SearchRequest) => (r.suspect_seat && r.level >= 3 ? `${r.suspect_seat}번 좌석` : rangeName(r.zone))
 export const targetSub = (r: SearchRequest) =>
-  r.suspect_seat && r.level >= 3 ? r.kind + " 추정" : `${r.seats[0]}~${r.seats.at(-1)}번${r.zone2 ? `, 2순위 ${r.zone2}구역` : ""}`
+  r.suspect_seat && r.level >= 3 ? r.kind + " 추정" : `${r.seats.length}석${r.zone2 ? `, 2순위 ${rangeName(r.zone2)}` : ""}`
 
 /** 대응 단계 이름 (휴대폰은 짧게) */
 export const LADDER = [
@@ -80,7 +81,7 @@ export const usesRule = (req: SearchRequest) => req.evidence.some((e) => e.sourc
 /** 카드에 보일 근거 2줄: 점수 기여가 큰 순서 */
 const topReasons = (req: SearchRequest, n = 2) =>
   req.evidence
-    .filter((e) => e.label !== "조사 기록" && e.label !== "대략 구역" && e.label !== "기기 종류")
+    .filter((e) => e.label !== "조사 기록" && e.label !== "추정 위치" && e.label !== "기기 종류")
     .sort((a, b) => (b.points ?? 0) - (a.points ?? 0))
     .slice(0, n)
 
@@ -125,7 +126,7 @@ export function RequestCard({ req, startLabel = "09:00", flush = false }: { req:
           <div className="flex items-center gap-1.5 text-fs13 font-semibold">
             <span className={tone === "danger" ? "text-danger" : "text-warn"}>{requestTitle(req)}</span>
             {since && <span className="num font-medium text-fg-3">{since}부터</span>}
-            {usesRule(req) && <Tag tone="warn" className="ml-auto" >규칙 점수</Tag>}
+            {usesRule(req) && <Tag tone="warn" className="ml-auto" >위치 정확도 낮음</Tag>}
             {req.state === "searching" && <Tag tone="brand" className={usesRule(req) ? "" : "ml-auto"}>순회 중</Tag>}
           </div>
           <div className="mt-0.5 text-fs19 leading-snug font-bold">{target(req)} {req.kind} 추정</div>
@@ -142,8 +143,8 @@ export function RequestCard({ req, startLabel = "09:00", flush = false }: { req:
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
         <Button variant="secondary" onClick={() => setOpen(true)}>근거 보기</Button>
-        {act && (
-          <Button variant={tone === "danger" ? "danger" : "primary"} onClick={go} disabled={busy}>
+        {act && canRecord(getRole()) && (
+          <Button variant={tone} onClick={go} disabled={busy}>
             {act.walk ? <Footprints /> : <ScanSearch />}
             {act.label}
           </Button>
@@ -160,7 +161,7 @@ const plain = (v: string) => v.replace(/\s*\([^)]*\)/g, "").split(", ")[0].repla
 export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest; open: boolean; onOpenChange: (o: boolean) => void }) {
   const events = useLive((s) => s.events)
   const { act, go, busy } = useGo(req, () => onOpenChange(false))
-  const facts = req.evidence.filter((e) => e.label !== "조사 기록" && e.label !== "대략 구역")
+  const facts = req.evidence.filter((e) => e.label !== "조사 기록" && e.label !== "추정 위치")
   const since = deviceSeen(events, req.device_id).first?.slice(0, 5)
   const tone = req.level >= 3 ? "danger" : "warn"
   const history = useMemo(() => events.filter((e) => e.device_id === req.device_id && e.sim_time >= 0), [events, req.device_id])
@@ -178,8 +179,8 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
       }
       top={<Tracker steps={LADDER} current={req.level - 1} tone={tone} />}
       footer={
-        act ? (
-          <Button variant={tone === "danger" ? "danger" : "primary"} size="lg" className="w-full" onClick={go} disabled={busy}>
+        act && canRecord(getRole()) ? ( // 순회 · 결과 입력은 감독관만 (관리자 · 검토자는 보기만)
+          <Button variant={tone} size="lg" className="w-full" onClick={go} disabled={busy}>
             {act.walk ? <Footprints /> : <ScanSearch />}
             {act.label}
           </Button>
@@ -188,7 +189,7 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
     >
       {usesRule(req) && (
         <p className="border-b border-line bg-warn-soft px-5 py-2.5 text-fs14 text-warn">
-          <b>규칙 점수</b>: 장비나 AI 모델에 이상이 있어 이 판단은 AI 대신 규칙으로 계산했습니다. 위치가 덜 정확할 수 있습니다.
+          <b>위치 정확도 낮음</b>: 장비나 AI 모델에 이상이 있어 에이전트가 AI 모델 대신 규칙으로 계산했습니다. 위치가 덜 정확할 수 있습니다.
         </p>
       )}
 
@@ -213,13 +214,17 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
         </Section>
       )}
 
-      <Section title={req.level === 4 ? "다시 볼 곳" : "금속탐지기로 볼 곳"}>
-        <PartChips parts={req.search_parts} />
-      </Section>
-
-      <Section title="수색 후 할 일">
-        <Steps items={["위 부위를 금속탐지기로 확인", "결과 입력", "발견한 기기는 차폐 파우치에 보관"]} />
-      </Section>
+      {/* 수색 지시는 처리 전 요청 · 감독관에게만 (끝난 요청이나 보기만 하는 역할에는 필요 없음) */}
+      {isOpen(req) && canRecord(getRole()) && (
+        <>
+          <Section title={req.level === 4 ? "다시 볼 곳" : "금속탐지기로 볼 곳"}>
+            <PartChips parts={req.search_parts} />
+          </Section>
+          <Section title="수색 후 할 일">
+            <Steps items={["위 부위를 금속탐지기로 확인", "결과 입력", "발견한 기기는 차폐 파우치에 보관"]} />
+          </Section>
+        </>
+      )}
 
       <Section title="에이전트 경보 단계" defaultOpen={false}>
         <LadderFlow req={req} />
@@ -274,7 +279,7 @@ function SourceTabs({ req, facts }: { req: SearchRequest; facts: Evidence[] }) {
             </li>
           ))}
         </ul>
-      ) : <p className="py-4 text-center text-sm text-fg-3">아직 휴대형으로 돌지 않았습니다.</p>)}
+      ) : <p className="py-4 text-center text-sm text-fg-3">아직 휴대형으로 순회하지 않았습니다.</p>)}
     </div>
   )
 }

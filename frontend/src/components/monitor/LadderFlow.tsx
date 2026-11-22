@@ -1,5 +1,5 @@
 // 대응 단계 흐름 (설계안 v11 그림 22 · 설계안 이름은 '수색 강화 사다리')
-// Lv0 감시 → Lv1 추가 관찰 → Lv2 휴대형 접근 → Lv3 정밀 수색 → 수색 결과
+// Lv0 이상 없음 → Lv1 추가 관찰 → Lv2 휴대형 접근 → Lv3 정밀 수색 → 수색 결과
 //   ├ 발견 → 규정대로 처리 · 정답으로 기록
 //   ├ 미발견 · 신호 사라짐 → 오탐으로 기록
 //   (v12) 시험 중 기준은 바꾸지 않음 · 기록한 결과는 시험 후 사람 검토를 거쳐 시험 없는 기간에 학습
@@ -14,16 +14,17 @@ import { cn, type Tone } from "@/lib/utils"
 type Id = "lv0" | "lv1" | "lv2" | "lv3" | "result" | "found" | "fp" | "lv4" | "unresolved"
 
 const STEPS: { id: Id; tag: string; name: string; when: string; tone: Tone }[] = [
-  { id: "lv0", tag: "Lv0", name: "감시", when: "허용 목록 밖 신호 없음, 화면에 알림 없음", tone: "ok" },
-  { id: "lv1", tag: "Lv1", name: "추가 관찰", when: "위험 40~69점, 확신 부족 → 30초 더 관찰", tone: "warn" },
-  { id: "lv2", tag: "Lv2", name: "휴대형 접근", when: "60점 이상 + 구역 확신, 또는 영상 통화나 사진 전송 패턴", tone: "warn" },
-  { id: "lv3", tag: "Lv3", name: "정밀 수색", when: "70점 이상 30초 연속 + 근거 2개 이상 → 금속탐지기", tone: "danger" },
+  { id: "lv0", tag: "Lv0", name: "이상 없음", when: "허용 목록 밖 신호 없음, 화면에 알림 없음", tone: "ok" },
+  { id: "lv1", tag: "Lv1", name: "추가 관찰", when: "아직 확실하지 않아 에이전트가 30초 더 지켜봄", tone: "warn" },
+  { id: "lv2", tag: "Lv2", name: "휴대형 접근", when: "위치가 좁혀졌거나 영상 통화, 사진 전송이 의심됨 → 휴대형으로 순회", tone: "warn" },
+  { id: "lv3", tag: "Lv3", name: "정밀 수색", when: "기기가 있을 가능성이 높음 → 의심 좌석을 금속탐지기로", tone: "danger" },
 ]
 
-const BRANCH: { id: Id; name: string; then: string; learn: string; tone: Tone }[] = [
-  { id: "found", name: "발견", then: "시험 규정대로 처리", learn: "정답으로 기록, 시험 후 학습", tone: "neutral" },
-  { id: "fp", name: "미발견 (신호 사라짐)", then: "잘못 잡은 신호 (오탐)", learn: "오탐으로 기록, 시험 후 학습", tone: "neutral" },
-  { id: "lv4", name: "미발견 (신호 계속)", then: "Lv4 2차 수색 (소지품, 책상, 다른 부위)", learn: "학습 보류", tone: "danger" },
+// 감독관 화면이라 AI 학습 이야기는 넣지 않음 (결과 기록이 학습에 쓰이는 흐름은 시연 영상에서 설명)
+const BRANCH: { id: Id; name: string; then: string; tone: Tone }[] = [
+  { id: "found", name: "발견", then: "시험 규정대로 처리", tone: "neutral" },
+  { id: "fp", name: "미발견 (신호 사라짐)", then: "잘못 잡은 신호 (오탐)", tone: "neutral" },
+  { id: "lv4", name: "미발견 (신호 계속)", then: "Lv4 2차 수색 (소지품, 책상, 다른 부위)", tone: "danger" },
 ]
 
 /** 요청 상태 → 지금 위치 · 지나온 단계 */
@@ -119,7 +120,6 @@ export function LadderFlow({ req, counts, className, wide = false }: {
               <div className="pr-9">
                 <div className={cn("text-fs13 font-bold", b.id === "lv4" && "text-danger")}>{b.name}</div>
                 <div className="mt-0.5 text-fs12 leading-snug text-fg-2">{b.then}</div>
-                <div className={cn("mt-1 inline-block rounded px-1.5 text-fs11 font-semibold", b.id === "lv4" ? "bg-danger-soft text-danger" : "bg-fg/[0.06] text-fg-2")}>{b.learn}</div>
               </div>
             ), "h-full")}
           </div>
@@ -131,7 +131,7 @@ export function LadderFlow({ req, counts, className, wide = false }: {
           {box("unresolved", "warn", (
             <div className="pr-9">
               <div className="text-fs13 font-bold">2차에서도 미발견</div>
-              <div className="mt-0.5 text-fs12 leading-snug text-fg-2">미해결로 기록. 시험 후 사람이 검토해 결과를 정함</div>
+              <div className="mt-0.5 text-fs12 leading-snug text-fg-2">미해결로 기록. 시험 후 관리자가 검토해 결과를 정함</div>
             </div>
           ))}
         </div>
