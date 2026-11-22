@@ -26,8 +26,9 @@
 
 | 항목 | 내용 |
 |---|---|
-| **링크** | **https://wavespot-daup.vercel.app** · 설치 · 로그인 · API 키 없음 |
-| **첫 화면까지** | 처음 한 번 30초~1분 (서버와 AI 모델을 브라우저 안에 불러옴) |
+| **링크** | **https://wavespot-daup.vercel.app** · 설치 · API 키 없음 |
+| **로그인** | 시연용 계정 3개 · 누르면 자동 입력 |
+| **첫 화면까지** | 처음 20초 안팎 · 다시 열면 10초 남짓 |
 | **권장 화면** | 태블릿 가로 · PC 브라우저 · 휴대폰 |
 | **데이터** | 공개 데이터 · 논문 수치로 만든 모의 데이터 (실측 아님) |
 
@@ -36,18 +37,36 @@
   </tr>
 </table>
 
-웹 시연판은 현장 서버 코드(FastAPI · AI 에이전트 · 모델 6개)를 브라우저 안(Pyodide)에서 그대로 실행합니다. 새로고침하면 새 시험으로 다시 시작합니다.
+웹 시연판은 현장 서버 코드(FastAPI · AI 에이전트 · 모델 6개)를 브라우저 안(Pyodide)에서 그대로 실행합니다. 첫 화면까지 걸리는 시간은 이것을 내려받는 시간이며, 실제 시험장에서는 서버가 미리 켜져 있어 기다림이 없습니다. 시험은 30배속으로 재생되어 40분 시험이 2~3분 만에 끝납니다. 새로고침하면 새 시험으로 다시 시작하고, 로그아웃 후 다른 계정으로 들어가면 같은 시험을 이어서 볼 수 있습니다.
+
+<br/>
+
+## 로그인과 역할
+
+계정마다 볼 수 있는 화면과 할 수 있는 일이 다르며, 권한은 서버에서도 같은 기준으로 막습니다 (권한 밖 요청은 403).
+
+비밀번호는 세 계정 모두 **`wavespot2026`** 입니다.
+
+| 역할 | 보이는 화면 | 할 수 있는 일 |
+|---|---|---|
+| **감독관**<br/>`supervisor` | 준비 · 감독 · 순회 · 기록 | 교실에서 시험 진행. 순회, 수색 결과 입력, 감독관 의견 작성 |
+| **관리자**<br/>`admin` | 준비 · 감독(보기만) · 기록 · 관리 | 시험장 시스템과 장비 담당. 설정, 장애와 공격 모의 훈련 (시험 중 기준값은 잠김) |
+| **검토자**<br/>`auditor` | 기록 · 관리 | 시험 후 이의 제기와 판정을 검토하는 제3자. 열람만 가능 |
+
+서버에는 비밀번호 대신 PBKDF2 해시만 두고, 로그인하면 서명된 토큰(HMAC-SHA256, 12시간)을 받습니다.
 
 <br/>
 
 ## 직접 눌러 보는 순서 (약 5분)
 
-1. **준비** 탭: **기준선 만들기** → 시험 전 확인 2개 체크 → **감시 시작**
-2. 재생 속도를 **60배**로 바꾸면 40분 시험이 약 40초에 끝납니다.
-3. **감독** 탭: '이상 없음' → '관찰 중' → **AI 감지 카드** → **근거 보기**
-4. **휴대형으로 접근** → 순회 → 좌석을 골라 **발견 / 미발견** 입력
-5. 09:55 무렵 **수신기 R3 꺼짐** 경고 → 3대용 위치 모델로 전환 → 2분 뒤 복구
-6. **기록** 탭: 시험 후 리포트 / **관리** 탭: AI 에이전트 판단 과정 · 장애와 공격 모의 훈련 (장비 및 보안 탭에서 역할을 '관리자'로)
+1. 로그인 화면에서 **감독관**을 누르고 **로그인**
+2. **준비** 탭: 자가 점검 '모두 통과' 확인 → **허용 기기 등록** → 시험 전 확인 2개 체크 → **감지 시작**
+3. **감독** 탭: 09:07 '관찰 중' → 09:09 **정밀 수색 요청** (28번 주변 무선 이어폰) → **근거 보기**
+4. **순회** 탭에서 요청을 골라 경로 확인 → **순회 시작** → 신호가 강했던 좌석을 골라 **발견 / 미발견** 입력
+5. 09:20 두 번째 요청 (휴대폰, 영상 통화) → 근거 보기의 **Wi-Fi** 탭
+6. 09:30 **수신기 R3 꺼짐** 경고 → 3대용 위치 모델로 전환 → 2분 뒤 복구
+7. 09:40 시험 종료 → **기록** 탭: 시험 후 리포트
+8. 로그아웃 후 **관리자**로 들어가 **관리** 탭 (개요 · 에이전트 · 비상 대응 · 시스템), **검토자**로 들어가 같은 기록을 열람 전용으로 확인
 
 <br/>
 
@@ -55,30 +74,54 @@
 
 ### 태블릿 (가로 · 기준 화면)
 
+**시험 전**
+
 <table>
   <tr>
-    <td width="50%" align="center"><img src="docs/images/tablet/02_setup_baseline.png" alt="준비 · 기준선"/><br/><b>① 준비 · 기준선 만들기</b><br/><sub>입실 전 신호를 허용 목록에 등록 · 시험 전 확인 2개를 체크해야 감시 시작</sub></td>
-    <td width="50%" align="center"><img src="docs/images/tablet/03_monitor_clear.png" alt="감독 · 이상 없음"/><br/><b>② 감독 · 이상 없음</b><br/><sub>평소 화면 · 감독관이 할 일 없음</sub></td>
+    <td width="50%" align="center"><img src="docs/images/tablet/00_login.png" alt="로그인"/><br/><b>① 로그인</b><br/><sub>감독관 · 관리자 · 검토자 계정, 누르면 입력되는 시연용 계정</sub></td>
+    <td width="50%" align="center"><img src="docs/images/tablet/01_setup_check.png" alt="준비 · 자가 점검"/><br/><b>② 준비 · 자가 점검</b><br/><sub>수신기 4대 · 기준 비콘 · 시계 동기화 · 펌웨어 서명 · AI 모델 파일을 통과해야 다음 단계</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/images/tablet/04_monitor_watching.png" alt="감독 · 관찰 중"/><br/><b>③ 관찰 중</b><br/><sub>교실 안 새 신호 · 30초 연속 확인 중 (요청 없음)</sub></td>
-    <td align="center"><img src="docs/images/tablet/05_monitor_request.png" alt="정밀 수색 요청"/><br/><b>④ AI 감지 · 정밀 수색 요청</b><br/><sub>위험 점수 · 대상 구역 · 근거 2줄 · 1순위/2순위 구역</sub></td>
+    <td align="center"><img src="docs/images/tablet/02_setup_baseline.png" alt="준비 · 허용 기기 등록"/><br/><b>③ 준비 · 허용 기기 등록 → 감지 시작</b><br/><sub>입실 전 교실 기기를 탐지 대상에서 빼고, 시험 전 확인 2개를 체크해야 감지 시작</sub></td>
+    <td align="center"><img src="docs/images/tablet/03_monitor_clear.png" alt="감독 · 이상 없음"/><br/><b>④ 감독 · 이상 없음</b><br/><sub>평소 화면 · 감독관이 할 일 없음, 오른쪽에 최근 에이전트 판단</sub></td>
+  </tr>
+</table>
+
+**시험 중**
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/images/tablet/04_monitor_watching.png" alt="감독 · 관찰 중"/><br/><b>⑤ 관찰 중</b><br/><sub>교실 안 새 신호 · 에이전트가 30초 더 지켜봄 (아직 조치 필요 없음)</sub></td>
+    <td width="50%" align="center"><img src="docs/images/tablet/05_monitor_request.png" alt="정밀 수색 요청"/><br/><b>⑥ 에이전트 감지 · 정밀 수색 요청</b><br/><sub>위험 점수 · 추정 위치 · 근거 2줄 · 1순위/2순위 범위</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/images/tablet/08_evidence_receivers.png" alt="근거 서랍"/><br/><b>⑤ 근거 보기</b><br/><sub>근거 · 틀릴 수 있는 이유 · 금속탐지기로 볼 곳 · 수색 후 할 일</sub></td>
-    <td align="center"><img src="docs/images/tablet/09_evidence_wifi.png" alt="근거 · Wi-Fi"/><br/><b>⑥ 근거 · Wi-Fi 탭</b><br/><sub>신호원별 근거 (천장 수신기 · 휴대형 · Wi-Fi)</sub></td>
+    <td align="center"><img src="docs/images/tablet/06_evidence_receivers.png" alt="근거 보기"/><br/><b>⑦ 근거 보기</b><br/><sub>대응 단계 · 신호원별 근거 · 이 기기의 시간순 기록</sub></td>
+    <td align="center"><img src="docs/images/tablet/07_evidence_wifi.png" alt="근거 · Wi-Fi"/><br/><b>⑧ 근거 · Wi-Fi 탭</b><br/><sub>휴대폰 추정 · 통신 용도 '영상 통화'</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/images/tablet/10_roam_route.png" alt="순회 경로"/><br/><b>⑦ 순회 · 경로 설정</b><br/><sub>돌 구역 순서 · 좌석마다 머무는 시간 · 예상 시간</sub></td>
-    <td align="center"><img src="docs/images/tablet/11_roam_scanning.png" alt="순회 중"/><br/><b>⑧ 순회 · 정밀 탐색 중</b><br/><sub>최고값 대비 게이지 · 지금 구역 / 다음 구역</sub></td>
+    <td align="center"><img src="docs/images/tablet/08_roam_route.png" alt="순회 경로"/><br/><b>⑨ 순회 · 경로</b><br/><sub>돌 범위와 순서 · 예상 시간 · 좌석을 눌러 넣거나 빼기</sub></td>
+    <td align="center"><img src="docs/images/tablet/09_roam_scanning.png" alt="순회 중"/><br/><b>⑩ 순회 · 휴대형 수신기로 탐색</b><br/><sub>이번 순회에서 가장 강했던 곳 대비 · 지금 범위 / 다음 범위</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/images/tablet/12_roam_result.png" alt="결과 입력"/><br/><b>⑨ 결과 입력</b><br/><sub>강하게 들린 좌석 순서 → 발견 / 미발견</sub></td>
-    <td align="center"><img src="docs/images/tablet/13_receiver_down.png" alt="수신기 꺼짐"/><br/><b>⑩ 장비 고장 · 수신기 R3 꺼짐</b><br/><sub>경고 배너 · 수신기 3/4 · 3대용 위치 모델</sub></td>
+    <td align="center"><img src="docs/images/tablet/10_roam_result.png" alt="결과 입력"/><br/><b>⑪ 수색 결과 입력</b><br/><sub>신호가 강했던 좌석 순서 · 금속탐지기로 볼 곳 → 발견 / 미발견</sub></td>
+    <td align="center"><img src="docs/images/tablet/11_receiver_down.png" alt="수신기 꺼짐"/><br/><b>⑫ 장비 고장 · 수신기 R3 꺼짐</b><br/><sub>경고 배너 · 수신기 3/4 · 3대용 위치 모델로 범위를 넓게 표시</sub></td>
+  </tr>
+</table>
+
+**시험 후 · 관리**
+
+<table>
+  <tr>
+    <td width="50%" align="center"><img src="docs/images/tablet/12_report.png" alt="시험 후 리포트"/><br/><b>⑬ 기록 · 시험 후 리포트</b><br/><sub>종합 소견 · 타임라인 · 수색 내역 · 장애 기록 · 감독관 의견 · 판단 기록</sub></td>
+    <td width="50%" align="center"><img src="docs/images/tablet/13_admin_overview.png" alt="관리 · 개요"/><br/><b>⑭ 관리 · 개요 (관리자)</b><br/><sub>운영 상태 · 경보 단계별 기기 수 · 장비 · 반입 금지 의심 기기</sub></td>
   </tr>
   <tr>
-    <td align="center"><img src="docs/images/tablet/14_report.png" alt="시험 후 리포트"/><br/><b>⑪ 기록 · 시험 후 리포트</b><br/><sub>종합 소견 · 타임라인 · 수색 내역 · 감독관 의견</sub></td>
-    <td align="center"><img src="docs/images/tablet/15_admin_agent.png" alt="관리 · AI 에이전트"/><br/><b>⑫ 관리 · AI 에이전트</b><br/><sub>기기마다 부른 모델 · 건너뛴 모델 · 모델 호출 절감</sub></td>
+    <td align="center"><img src="docs/images/tablet/14_admin_agent.png" alt="관리 · 에이전트"/><br/><b>⑮ 관리 · 에이전트</b><br/><sub>경보 단계 기준 · 기기별 판단 과정 · 에이전트가 쓰는 AI 모델 6개</sub></td>
+    <td align="center"><img src="docs/images/tablet/15_admin_faults.png" alt="관리 · 비상 대응"/><br/><b>⑯ 관리 · 비상 대응</b><br/><sub>장비 이상 때 동작 단계 · 장애 3종 · 회피 · 해킹 모의 훈련</sub></td>
+  </tr>
+  <tr>
+    <td align="center"><img src="docs/images/tablet/16_admin_system.png" alt="관리 · 시스템"/><br/><b>⑰ 관리 · 시스템</b><br/><sub>교실 장비 배치 · 시험 전 자가 점검 · 역할별 권한 · 접근 기록</sub></td>
+    <td align="center"><img src="docs/images/tablet/17_auditor_log.png" alt="검토자 · 기록"/><br/><b>⑱ 검토자 · 기록 열람</b><br/><sub>기록 · 관리 화면만 보임 · 입력 버튼 없음</sub></td>
   </tr>
 </table>
 
@@ -86,10 +129,10 @@
 
 <table>
   <tr>
-    <td width="25%" align="center"><img src="docs/images/phone/03_monitor_clear.png" alt="이상 없음"/><br/><b>이상 없음</b></td>
     <td width="25%" align="center"><img src="docs/images/phone/05_monitor_request.png" alt="정밀 수색 요청"/><br/><b>정밀 수색 요청</b></td>
-    <td width="25%" align="center"><img src="docs/images/phone/11_roam_scanning.png" alt="정밀 탐색"/><br/><b>정밀 탐색</b></td>
-    <td width="25%" align="center"><img src="docs/images/phone/14_report.png" alt="시험 후 리포트"/><br/><b>시험 후 리포트</b></td>
+    <td width="25%" align="center"><img src="docs/images/phone/09_roam_scanning.png" alt="휴대형 수신기로 탐색"/><br/><b>휴대형 수신기로 탐색</b></td>
+    <td width="25%" align="center"><img src="docs/images/phone/10_roam_result.png" alt="수색 결과 입력"/><br/><b>수색 결과 입력</b></td>
+    <td width="25%" align="center"><img src="docs/images/phone/12_report.png" alt="시험 후 리포트"/><br/><b>시험 후 리포트</b></td>
   </tr>
 </table>
 
@@ -97,7 +140,19 @@
 
 ## AI 에이전트와 모델 6개
 
-에이전트가 신호마다 필요한 모델만 골라 부르고, 결과에 따라 관찰 → 휴대형 접근 → 정밀 수색 중 다음 행동을 정합니다. 모델은 모두 이 저장소에서 학습하며(`backend/app/ml`), 외부 AI 서비스 · LLM API는 쓰지 않습니다.
+판단 주체는 에이전트입니다. 에이전트가 신호마다 필요한 모델만 골라 부르고(교실 전체 1개 + 기기마다 5개), 결과에 따라 다음 경보 단계를 정합니다. 모델은 모두 이 저장소에서 학습하며(`backend/app/ml`), 외부 AI 서비스 · LLM API는 쓰지 않습니다.
+
+**에이전트 경보 단계**
+
+단계마다 **언제 올라가는지 → 감독관이 할 일**입니다.
+
+- **Lv0 이상 없음**: 허용 목록 밖 신호 없음 → 할 일 없음
+- **Lv1 추가 관찰**: 위험 40~69점 → 할 일 없음 (에이전트가 30초 더 지켜봄)
+- **Lv2 휴대형 접근**: 60점 이상 + 위치 확신, 또는 영상 통화나 사진 전송 → 휴대형 수신기로 수색 범위 순회
+- **Lv3 정밀 수색**: 70점 이상 30초 연속 + 근거 2개 이상 → 의심 좌석을 금속탐지기로 수색
+- **Lv4 2차 수색**: 정밀 수색에서 못 찾았는데 신호가 계속 잡힘 → 소지품 · 책상 · 다른 신체 부위 확인, 그래도 못 찾으면 '미해결'로 기록해 시험 후 검토
+
+**AI 모델 6개**
 
 | # | 모델 | 질문 | 알고리즘 |
 |---|---|---|---|
@@ -133,7 +188,7 @@ cd ../frontend && npm install && npm run build
 cd ../backend && .venv/bin/fastapi run app/main.py
 ```
 
-브라우저에서 **http://localhost:8000** 을 엽니다. 같은 와이파이의 태블릿 · 휴대폰은 `http://<PC IP>:8000`. (개발 모드: `server/scripts/dev.ps1` → http://localhost:5173)
+브라우저에서 **http://localhost:8000** 을 열고 위 시연용 계정으로 로그인합니다. 같은 와이파이의 태블릿 · 휴대폰은 `http://<PC IP>:8000`. (개발 모드: `server/scripts/dev.ps1` → http://localhost:5173)
 
 <br/>
 
@@ -143,15 +198,15 @@ cd ../backend && .venv/bin/fastapi run app/main.py
 WaveSpot/
 ├── frontend/                  # 감독관 앱 (React 19 · Vite · TypeScript · Tailwind v4)
 │   └── src/
-│       ├── routes/            #    준비 · 감독 · 순회 · 기록 · 관리 화면
-│       ├── components/        #    좌석 배치도 · AI 감지 카드 · 근거 서랍 · 관리 차트
-│       ├── lib/               #    API · 실시간 상태(WebSocket)
+│       ├── routes/            #    로그인 · 준비 · 감독 · 순회 · 기록 · 관리 화면
+│       ├── components/        #    좌석 배치도 · 에이전트 감지 카드 · 근거 서랍 · 관리 차트
+│       ├── lib/               #    API · 실시간 상태(WebSocket) · 역할별 화면(roles.ts)
 │       └── demo/              #    웹 시연판: 현장 서버를 브라우저 안(Pyodide)에서 실행
 ├── backend/app/               # 현장 서버 (FastAPI)
 │   ├── agent/                 #    AI 에이전트 · 수색 강화 사다리 · 기기 묶기 · 미발견 처리
 │   ├── ml/                    #    AI 모델 6개 · 근거 기반 모의 데이터 · 학습 (train_models.py)
 │   ├── services/              #    10초 창 집계 · 녹화 재생 · MQTT 입력 · 장애 · 공격 · 해시 체인
-│   ├── api/                   #    REST · WebSocket · 역할별 권한
+│   ├── api/                   #    REST · WebSocket · 로그인 토큰(auth.py) · 역할별 권한(security.py)
 │   └── webdemo.py             #    웹 시연판 어댑터 (ASGI 직접 호출)
 ├── db/                        # SQLite 스키마
 ├── server/                    # 실행 스크립트 · MQTT 재생 송출 · web/(웹 시연판 빌드)
