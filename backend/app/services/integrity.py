@@ -63,7 +63,7 @@ def verify(s: Session, session_id: int) -> dict[str, Any]:
         if r.kind in ("event", "note"):
             now = (event_body(src) if r.kind == "event" else note_body(src)) if src else None
             if now is None or canonical(now) != canonical(r.body):
-                broken = {"seq": r.seq, "kind": r.kind, "reason": "원본 기록이 체인에 담긴 내용과 다름 (사후 수정 · 삭제)"}
+                broken = {"seq": r.seq, "kind": r.kind, "reason": "원본 기록이 체인에 담긴 내용과 다름 (사후 수정 또는 삭제)"}
                 break
         prev = r.hash
     n_events = s.exec(select(func.count()).select_from(AgentEvent).where(AgentEvent.session_id == session_id)).one()

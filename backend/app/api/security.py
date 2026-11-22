@@ -11,7 +11,7 @@ from sqlmodel import Session
 from app.core.db import engine as db
 from app.models import AccessLog
 
-ROLES = {"supervisor": "감독관", "admin": "관리자", "auditor": "감사"}
+ROLES = {"supervisor": "감독관", "admin": "관리자", "auditor": "검토자"}
 ADMIN_ONLY = ("/api/faults/", "/api/attacks/")  # 장애 · 공격 재현은 관리자만
 NOT_LOGGED = ("/api/health", "/api/status", "/api/scenarios", "/api/ws")  # 화면 갱신용 (개인 기록 아님)
 
@@ -33,7 +33,7 @@ async def access_middleware(request: Request, call_next):
         return await call_next(request)
     role = role_of(request)
     if role == "auditor" and request.method != "GET":
-        resp = JSONResponse({"detail": "감사 역할은 열람만 할 수 있습니다"}, 403)
+        resp = JSONResponse({"detail": "검토자 역할은 열람만 할 수 있습니다"}, 403)
     elif request.method != "GET" and path.startswith(ADMIN_ONLY) and role != "admin":
         resp = JSONResponse({"detail": "관리자만 할 수 있습니다"}, 403)
     else:

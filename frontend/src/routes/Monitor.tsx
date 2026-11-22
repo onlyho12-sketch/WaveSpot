@@ -55,13 +55,13 @@ export function Monitor() {
   const zones = useMemo<ZoneMark[]>(() => {
     const z: ZoneMark[] = []
     for (const r of open) {
-      z.push({ zone: r.zone, kind: r.level >= 3 ? "request" : "candidate", label: `${r.zone2 ? "1순위" : "수색 범위"} · 근거 ${evidenceCount(r)}개`, wide })
+      z.push({ zone: r.zone, kind: r.level >= 3 ? "request" : "candidate", label: `${r.zone2 ? "1순위" : "수색 범위"} (근거 ${evidenceCount(r)}개)`, wide })
       if (r.zone2 && !z.some((m) => m.zone === r.zone2)) z.push({ zone: r.zone2, kind: "candidate", label: "2순위", wide })
     }
     for (const d of devices)
       if (d.level === 1 && d.zone != null && !z.some((m) => m.zone === d.zone)) {
         const t = lasting(events, d.device_id, now)
-        z.push({ zone: d.zone, kind: "watch", label: t ? `관찰 중 · ${t}` : "관찰 중", wide })
+        z.push({ zone: d.zone, kind: "watch", label: t ? `관찰 중 (${t})` : "관찰 중", wide })
       }
     return z
   }, [open, devices, events, now, wide])
@@ -105,9 +105,6 @@ export function Monitor() {
     )
   }
 
-  const nodeList = status?.nodes ?? []
-  const total = nodeList.length || 4
-  const online = nodeList.filter((n) => n.status === "online").length
   const watching = devices.filter((d) => d.level === 1).length
   const duration = clock?.duration_min ?? session?.duration_min ?? 100
 
@@ -153,8 +150,8 @@ export function Monitor() {
       <section aria-label="감독실" className="room overflow-hidden rounded-lg expanded:order-1">
         <header className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 pt-4 medium:px-5">
           <div className="min-w-0">
-            <h2 className="text-fs17 font-bold">좌석 배치 · {(session?.rows ?? 4) * (session?.cols ?? 10)}석</h2>
-            <div className="num mt-0.5 text-fs13 text-fg-3">{start} ~ {clockOf(duration * 60, start)} · {duration}분</div>
+            <h2 className="text-fs17 font-bold">좌석 배치 ({(session?.rows ?? 4) * (session?.cols ?? 10)}석)</h2>
+            <div className="num mt-0.5 text-fs13 text-fg-3">{start} ~ {clockOf(duration * 60, start)} ({duration}분)</div>
           </div>
           {open.length > 0 && (
             <Button asChild size="sm" className="ml-auto bg-brand-soft text-brand hover:bg-brand-soft/70">
@@ -163,32 +160,12 @@ export function Monitor() {
           )}
         </header>
 
-        <Counters
-          compact={phone}
-          groups={[
-            {
-              title: "장비",
-              cells: [
-                { label: "수신기", value: `${online}/${total}`, tone: online === total ? "ok" : "danger" },
-                health?.beacon === "frozen"
-                  ? { label: "기준 비콘", value: "보정 정지", tone: "warn" }
-                  : { label: "기준 비콘", value: status?.beacon_ok ? "정상" : "끊김", tone: status?.beacon_ok ? "ok" : "danger" },
-              ],
-            },
-            {
-              title: "신호",
-              cells: [
-                { label: "허용 목록", value: status?.allowlist.length ?? 0 },
-                { label: "관찰 중", value: watching, tone: watching > 0 ? "warn" : undefined },
-              ],
-            },
-            {
-              title: "요청",
-              cells: [
-                { label: "수색 요청", value: open.length, tone: open.length > 0 ? "danger" : undefined },
-                { label: "처리 완료", value: closed.length },
-              ],
-            },
+        {/* 장비 상태는 위쪽 줄 · 장애 배너에 있고, 허용 목록 수는 감독관이 할 일과 무관 → 여기서는 뺌 */}
+        <Counts
+          cells={[
+            { label: "관찰 중", value: watching, tone: watching > 0 ? "warn" : undefined },
+            { label: "수색 요청", value: open.length, tone: open.length > 0 ? "danger" : undefined },
+            { label: "처리 완료", value: closed.length },
           ]}
         />
 
@@ -209,45 +186,24 @@ export function Monitor() {
 
 type Cell = { label: string; value: string | number; tone?: Tone }
 
-/** 상태별 카운터 (장비 · 신호 · 요청 묶음). 휴대폰은 묶음 제목 없이 3칸 격자 */
-function Counters({ groups, compact = false }: { groups: { title: string; cells: Cell[] }[]; compact?: boolean }) {
-  if (compact)
-    return (
-      <div className="grid grid-cols-3 gap-1 px-3 pt-3 pb-3">
-        {groups.flatMap((g) => g.cells).map((c) => <CounterCell key={c.label} c={c} compact />)}
-      </div>
-    )
+/** 상태 개수 한 줄 (칸 · 배경 없이 '이름 숫자'). 0이면 회색 글자, 할 일이 생긴 항목만 모양 + 색 */
+function Counts({ cells }: { cells: Cell[] }) {
   return (
-    <div className="flex flex-wrap gap-x-4 gap-y-3 px-4 pt-3 pb-4 medium:px-5">
-      {groups.map((g) => (
-        <div key={g.title}>
-          <div className="mb-1 text-fs11 font-semibold text-fg-3">{g.title}</div>
-          <div className="flex gap-1">
-            {g.cells.map((c) => <CounterCell key={c.label} c={c} />)}
-          </div>
-        </div>
-      ))}
+    <div className="flex items-center px-4 pt-2 pb-3 text-fs14 medium:px-5">
+      {cells.map((c, i) => <CountItem key={c.label} c={c} first={i === 0} />)}
     </div>
   )
 }
 
-/** 값이 바뀌면 숫자가 아래에서 올라오고, 주의 · 경고 칸은 배경이 진하게 반짝였다 돌아옴 (화면에 들어올 때는 재생 안 함) */
-function CounterCell({ c, compact = false }: { c: Cell; compact?: boolean }) {
+/** 값이 바뀌면 숫자만 아래에서 올라옴 (화면에 들어올 때는 재생 안 함) */
+function CountItem({ c, first }: { c: Cell; first: boolean }) {
   const changed = useChangeCount(c.value)
+  const color = c.tone === "danger" ? "text-danger" : c.tone === "warn" ? "text-warn" : null
   return (
-    <div className={cn("relative overflow-hidden rounded-md text-center", compact ? "px-1 py-1.5" : "min-w-[78px] px-3 py-2 medium:min-w-[88px]",
-      c.tone === "danger" ? "bg-danger-soft" : c.tone === "warn" ? "bg-warn-soft" : "bg-surface")}>
-      {changed > 0 && (c.tone === "danger" || c.tone === "warn") && (
-        <span key={changed} aria-hidden className={cn("pointer-events-none absolute inset-0 animate-flash", c.tone === "danger" ? "bg-danger/25" : "bg-warn-fill/30")} />
-      )}
-      <div className="relative flex items-center justify-center gap-1 text-xs whitespace-nowrap text-fg-2">
-        {c.tone && <Shape tone={c.tone} className="size-2.5" />}
-        {c.label}
-      </div>
-      <div key={changed} className={cn("num relative leading-tight font-bold", compact ? "text-fs17" : "mt-0.5 text-fs20", changed > 0 && "animate-tick",
-        c.tone === "danger" ? "text-danger" : c.tone === "warn" ? "text-warn" : "text-fg")}>
-        {c.value}
-      </div>
+    <div className={cn("flex items-center gap-1.5 whitespace-nowrap", !first && "ml-4 border-l border-line pl-4")}>
+      {c.tone && <Shape tone={c.tone} className="size-2.5" />}
+      <span className={color ?? "text-fg-3"}>{c.label}</span>
+      <span key={changed} className={cn("num inline-block font-semibold", changed > 0 && "animate-tick", color ?? "text-fg-2")}>{c.value}</span>
     </div>
   )
 }
@@ -260,7 +216,7 @@ function StatusCard({ watching }: { watching: boolean }) {
       <Icon className="size-9 shrink-0" strokeWidth={2.2} />
       <div>
         <div className="text-fs24 leading-tight font-bold">{watching ? "관찰 중" : "이상 없음"}</div>
-        <div className="text-fs14 opacity-95">{watching ? "할 일 없음 · 자동으로 더 확인하는 중" : "숨은 기기 신호 없음"}</div>
+        <div className="text-fs14 opacity-95">{watching ? "할 일 없음 (자동으로 더 확인하는 중)" : "숨은 기기 신호 없음"}</div>
       </div>
     </div>
   )
@@ -269,9 +225,9 @@ function StatusCard({ watching }: { watching: boolean }) {
 /** 자동 탐지가 멈추거나 줄었을 때 '이상 없음' 대신 보이는 카드 (v11 10장 · 해킹 · 장애 ≠ 이상 없음) */
 function HealthCard({ health }: { health: Health }) {
   const c = {
-    manual: { Icon: WifiOff, bg: "bg-danger", title: "감시 중단", sub: "시험장 망 끊김 · 순회와 금속탐지기로 직접 감독하세요" },
-    recovering: { Icon: RefreshCw, bg: "bg-warn-fill", title: "복구 중", sub: "현장 서버 재시작 · 저장된 상태로 곧 이어서 판단" },
-    no_location: { Icon: MapPinOff, bg: "bg-danger", title: "위치 추정 중지", sub: `수신기 ${health.nodes_ok}/4 · 숨은 기기가 있는지만 판단 · 휴대형으로 교실 전체 순회` },
+    manual: { Icon: WifiOff, bg: "bg-danger", title: "감시 중단", sub: "시험장 망 끊김. 순회와 금속탐지기로 직접 감독하세요" },
+    recovering: { Icon: RefreshCw, bg: "bg-warn-fill", title: "복구 중", sub: "현장 서버 재시작. 저장된 상태로 곧 이어서 판단" },
+    no_location: { Icon: MapPinOff, bg: "bg-danger", title: "위치 추정 중지", sub: `수신기 ${health.nodes_ok}/4. 숨은 기기가 있는지만 판단하니 휴대형으로 교실 전체를 순회하세요` },
   }[health.mode as "manual" | "recovering" | "no_location"]
   if (!c) return null
   return (

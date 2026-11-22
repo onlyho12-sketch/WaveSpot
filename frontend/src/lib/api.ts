@@ -115,7 +115,7 @@ export type AttackView = {
 }
 
 export type Role = "supervisor" | "admin" | "auditor"
-export const ROLE_NAME: Record<Role, string> = { supervisor: "감독관", admin: "관리자", auditor: "감사" }
+export const ROLE_NAME: Record<Role, string> = { supervisor: "감독관", admin: "관리자", auditor: "검토자" }
 
 export type Note = { id: number; sim_time: number; clock: string; text: string }
 

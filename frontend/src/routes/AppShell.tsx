@@ -94,7 +94,7 @@ export function AppShell() {
 
             <div className="ml-auto flex items-center gap-4 text-sm">
               {outbox > 0 && (
-                <span className="flex items-center gap-1.5 rounded-md bg-warn-soft px-2 py-1 text-fs13 font-semibold text-warn" title="저장 확인을 못 받은 수색 결과 · 태블릿에 저장해 두고 연결되면 자동 전송">
+                <span className="flex items-center gap-1.5 rounded-md bg-warn-soft px-2 py-1 text-fs13 font-semibold text-warn" title="저장 확인을 못 받은 수색 결과입니다. 태블릿에 저장해 두고 연결되면 자동 전송">
                   <CloudUpload className="size-4" />전송 대기 <span className="num">{outbox}</span>건
                 </span>
               )}
@@ -117,12 +117,12 @@ export function AppShell() {
           </div>
 
           {!connected ? (
-            <Banner>앱 연결 끊김 · 다시 연결하는 중 · 그동안 휴대형 수신기가 진동 · LED로 알립니다</Banner>
+            <Banner>앱 연결이 끊겨 다시 연결하는 중입니다. 그동안 휴대형 수신기가 진동과 LED로 알립니다</Banner>
           ) : (
             <HealthBanners health={health} down={down} running={running} nodeTrouble={nodes.length > 0 && online < total} />
           )}
           {connected && resynced != null && resynced > 0 && (
-            <Banner tone="info"><RefreshCw className="size-4 shrink-0" />다시 연결됨 · 끊긴 동안 놓친 알림 {resynced}건을 다시 받았습니다</Banner>
+            <Banner tone="info"><RefreshCw className="size-4 shrink-0" />다시 연결됨. 끊긴 동안 놓친 알림 {resynced}건을 다시 받았습니다</Banner>
           )}
         </header>
 
@@ -147,22 +147,22 @@ export function AppShell() {
 
 /** 장애 상황별 한 줄 (설계안 v11 10장 '감독관 화면' 열) */
 function HealthBanners({ health, down, running, nodeTrouble }: { health?: Health; down: string[]; running: boolean; nodeTrouble: boolean }) {
-  if (!health) return nodeTrouble ? <Banner>수신기 {down.join(" · ")} 꺼짐 · 전원과 연결을 확인하세요</Banner> : null
+  if (!health) return nodeTrouble ? <Banner>수신기 {down.join(", ")} 꺼짐, 전원과 연결을 확인하세요</Banner> : null
   const list: ReactNode[] = []
   if (health.mode === "manual")
-    list.push(<Banner key="manual"><b>감시 중단 · 수동 감독 모드</b> — 시험장 망이 끊겨 자동 탐지가 멈췄습니다. 순회와 금속탐지기로 직접 감독하세요. 수신기는 계속 기록 중</Banner>)
+    list.push(<Banner key="manual"><b>감시 중단 (수동 감독 모드)</b> — 시험장 망이 끊겨 자동 탐지가 멈췄습니다. 순회와 금속탐지기로 직접 감독하세요. 수신기는 계속 기록 중</Banner>)
   else if (health.mode === "recovering")
-    list.push(<Banner key="rec" tone="warn"><RefreshCw className="size-4 shrink-0 animate-spin" />현장 서버 복구 중 · 마지막 저장 상태{health.checkpoint ? `(${health.checkpoint.slice(0, 5)})` : ""}로 이어서 판단합니다 · 30초 안에 자동 해제</Banner>)
+    list.push(<Banner key="rec" tone="warn"><RefreshCw className="size-4 shrink-0 animate-spin" />현장 서버 복구 중. 마지막 저장 상태{health.checkpoint ? `(${health.checkpoint.slice(0, 5)})` : ""}로 이어서 판단합니다. 30초 안에 자동 해제</Banner>)
   if (running && health.mode === "no_location")
-    list.push(<Banner key="noloc">수신기 {down.join(" · ")} 꺼짐 · <b>위치 추정 중지</b> — 숨은 기기가 있는지만 판단합니다. 휴대형으로 교실 전체를 순회하세요</Banner>)
+    list.push(<Banner key="noloc">수신기 {down.join(", ")} 꺼짐. <b>위치 추정 중지</b> — 숨은 기기가 있는지만 판단합니다. 휴대형으로 교실 전체를 순회하세요</Banner>)
   else if (running && health.mode === "degraded")
-    list.push(<Banner key="deg">수신기 {down.join(" · ")} 꺼짐 · 남은 3대로 위치 계산 (범위를 넓게 표시) · 전원과 연결을 확인하세요</Banner>)
+    list.push(<Banner key="deg">수신기 {down.join(", ")} 꺼짐. 남은 3대로 위치를 계산합니다 (범위를 넓게 표시). 전원과 연결을 확인하세요</Banner>)
   else if (!running && nodeTrouble)
-    list.push(<Banner key="node">수신기 {down.join(" · ")} 꺼짐 · 전원과 연결을 확인하세요</Banner>)
+    list.push(<Banner key="node">수신기 {down.join(", ")} 꺼짐, 전원과 연결을 확인하세요</Banner>)
   if (health.beacon === "frozen")
-    list.push(<Banner key="beacon" tone="warn">기준 비콘 이상 · 세기 보정 정지, 직전 보정값으로 계속 판단 · 쉬는 시간에 비콘을 교체하세요</Banner>)
+    list.push(<Banner key="beacon" tone="warn">기준 비콘 이상. 세기 보정을 멈추고 직전 보정값으로 계속 판단합니다. 쉬는 시간에 비콘을 교체하세요</Banner>)
   if (health.model_rule)
-    list.push(<Banner key="model" tone="warn">AI 위치 모델 이상 · 이 모델만 규칙 점수로 대신 판단 중 (근거 카드에 '규칙 점수' 표시)</Banner>)
+    list.push(<Banner key="model" tone="warn">AI 위치 모델 이상. 이 모델만 규칙 점수로 대신 판단 중 (판단 근거에 '규칙 점수' 표시)</Banner>)
   return <>{list}</>
 }
 

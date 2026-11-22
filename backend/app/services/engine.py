@@ -40,10 +40,10 @@ def impossible(rssi: dict[str, float]) -> str | None:
     모의 경로손실로 가장 가까워도 약 -78 dBm, 대각선 두 모서리가 함께 강할 수 없음."""
     strong = [n for n, v in rssi.items() if v > -50]
     if strong:
-        return f"{' · '.join(strong)} {max(rssi.values()):.0f} dBm (천장 수신기에서 나올 수 없는 세기)"
+        return f"{', '.join(strong)} {max(rssi.values()):.0f} dBm (천장 수신기에서 나올 수 없는 세기)"
     for a, b in (("R1", "R4"), ("R2", "R3")):
         if rssi.get(a, -100) > -70 and rssi.get(b, -100) > -70:
-            return f"대각선 {a} · {b} 가 함께 {rssi[a]:.0f} · {rssi[b]:.0f} dBm (한 기기에서 동시에 나올 수 없음)"
+            return f"대각선 {a}와 {b}가 함께 {rssi[a]:.0f} / {rssi[b]:.0f} dBm (한 기기에서 동시에 나올 수 없음)"
     return None
 
 
@@ -102,7 +102,7 @@ class Engine:
                 if cur and cur.state != "ended":
                     cur.state = "ended"
                     s.add(cur)
-                cur = ExamSession(name="3교시 수학", scenario="demo")
+                cur = ExamSession(name="컴퓨터활용능력 2급", scenario="demo")
                 s.add(cur)
                 s.commit()
                 s.refresh(cur)
@@ -200,7 +200,7 @@ class Engine:
             for mid, m in self.agent.linker.metas.items():
                 if mid in self.agent.allow:
                     continue
-                label = f"기준선 기기 {len(self.agent.allow) + 1} · 주소 {len(m.sources)}개"
+                label = f"기준선 기기 {len(self.agent.allow) + 1}, 주소 {len(m.sources)}개"
                 s.add(AllowedDevice(session_id=self.session.id, device_id=mid, label=label, reason="baseline"))
                 self.agent.allow[mid] = label
                 added.append({"device_id": mid, "label": label})
@@ -208,7 +208,7 @@ class Engine:
         self._save_state("baseline")
         self.t = 0.0
         n_addr = sum(len(m.sources) for m in self.agent.linker.metas.values())
-        await self.agent.log(-1, "준비", f"입실 전 20분 동안 잡힌 기기 {len(added)}대를 허용 목록에 등록 (주소 {n_addr}개) · 오늘 교실에 맞춰 기준 조정")
+        await self.agent.log(-1, "준비", f"입실 전 20분 동안 잡힌 기기 {len(added)}대를 허용 목록에 등록 (주소 {n_addr}개), 오늘 교실에 맞춰 기준 조정")
         await self.broadcast_status()
         return added
 
@@ -232,7 +232,7 @@ class Engine:
         buf = WindowBuffer()
         end = self.session.duration_min * 60
         win = settings.window_seconds
-        await self.agent.log(self.t, "준비", "시험 시작 · 수신기 4대로 교실 전체 감시 중 (녹화 재생 · 근거 기반 모의 데이터)")
+        await self.agent.log(self.t, "준비", "시험 시작, 수신기 4대로 교실 전체 감시 중 (녹화 재생, 근거 기반 모의 데이터)")
         while self.t < end:
             if self.paused:
                 await asyncio.sleep(0.2)
@@ -273,7 +273,7 @@ class Engine:
                 await hub.send("clock", self.clock_payload())
             await asyncio.sleep(0 if self.speed >= 1000 else 1 / max(self.speed, 0.1))  # 1000배 이상은 시험용
         self._save_state("ended")
-        await self.agent.log(self.t, "준비", "시험 종료 · 기록 화면에서 결과 확인")
+        await self.agent.log(self.t, "준비", "시험 종료, 기록 화면에서 결과 확인")
         await hub.send("clock", self.clock_payload())
 
     async def _run_mqtt(self) -> None:
@@ -294,7 +294,7 @@ class Engine:
         client.on_message = lambda _c, _u, m: loop.call_soon_threadsafe(q.put_nowait, (m.topic, bytes(m.payload)))
         client.connect(settings.mqtt_host, settings.mqtt_port)
         client.loop_start()
-        await self.agent.log(0, "준비", f"실제 수신기 모드 · MQTT {settings.mqtt_host}:{settings.mqtt_port} 연결")
+        await self.agent.log(0, "준비", f"실제 수신기 모드, MQTT {settings.mqtt_host}:{settings.mqtt_port} 연결")
         buf = WindowBuffer()
         t0 = time.monotonic()
         last = 0.0
@@ -346,7 +346,7 @@ class Engine:
         tr = self.agent.tracks.get(req.device_id)
         route = [z for z in dict.fromkeys(zones or []) if 1 <= z <= 8]
         if route:
-            await self.agent.log(self.t, "수색", f"휴대형 순회 시작 (감독관이 정한 경로) · {' → '.join(f'{z}구역' for z in route)} · 좌석마다 {dwell}초",
+            await self.agent.log(self.t, "수색", f"휴대형 순회 시작 (감독관이 정한 경로), {' → '.join(f'{z}구역' for z in route)}, 좌석마다 {dwell}초",
                                  "caution", req.device_id)
             if self.replay and tr and (self.walk_task is None or self.walk_task.done()):
                 walked = sorted(set((req.walk or {}).get("zones", []))) if req.level == 4 else None
@@ -357,18 +357,18 @@ class Engine:
             probs = tr.loc.zone_probs if tr and tr.loc else {}
             rest = sorted((z for z in range(1, 9) if z not in walked), key=lambda z: -probs.get(z, 0.0))
             zones = rest[:2]
-            await self.agent.log(self.t, "수색", f"2차 휴대형 순회 · 아직 안 돈 구역 중 가능성 높은 순 {' → '.join(f'{z}구역' for z in zones)}",
+            await self.agent.log(self.t, "수색", f"2차 휴대형 순회, 아직 안 돈 구역 중 가능성 높은 순 {' → '.join(f'{z}구역' for z in zones)}",
                                  "caution", req.device_id)
             if self.replay and tr and (self.walk_task is None or self.walk_task.done()):
                 self.walk_task = asyncio.create_task(self._walk(req, tr.addr, zones, sorted(walked)))
         elif req.level == 2 or req.suspect_seat is None or again:
             zones = [req.zone] + ([req.zone2] if req.zone2 else [])
-            await self.agent.log(self.t, "수색", f"휴대형 순회 {'다시 ' if again else ''}시작 · {' → '.join(f'{z}구역' for z in zones)} · 좌석마다 2초",
+            await self.agent.log(self.t, "수색", f"휴대형 순회 {'다시 ' if again else ''}시작, {' → '.join(f'{z}구역' for z in zones)}, 좌석마다 2초",
                                  "caution", req.device_id)
             if self.replay and tr and (self.walk_task is None or self.walk_task.done()):
                 self.walk_task = asyncio.create_task(self._walk(req, tr.addr, zones))
         else:
-            await self.agent.log(self.t, "수색", f"정밀 수색 시작 · {req.suspect_seat}번 · 금속탐지기로 {', '.join(req.search_parts[:2])} 확인",
+            await self.agent.log(self.t, "수색", f"정밀 수색 시작, {req.suspect_seat}번, 금속탐지기로 {', '.join(req.search_parts[:2])} 확인",
                                  "caution", req.device_id)
 
     async def _walk(self, req: SearchRequest, addr: str, zones: list[int], walked_before: list[int] | None = None, dwell: int = 2) -> None:
@@ -409,7 +409,7 @@ class Engine:
             s.commit()
             s.refresh(r)
         await hub.send("handheld", {"request_id": req.id, "done": True, "best_seat": best, "seat_medians": result})
-        await self.agent.log(self.t, "수색", f"휴대형 순회 끝 · 신호가 가장 강했던 좌석 {best}번 → {'정밀 수색 대상' if r.level >= 3 else '위험 점수가 기준 이상으로 30초 계속되면 정밀 수색 요청'}",
+        await self.agent.log(self.t, "수색", f"휴대형 순회 끝, 신호가 가장 강했던 좌석 {best}번 → {'정밀 수색 대상' if r.level >= 3 else '위험 점수가 기준 이상으로 30초 계속되면 정밀 수색 요청'}",
                              "caution", req.device_id, {"seat_medians": {str(k): v for k, v in result.items()}})
         await hub.send("request", r.model_dump(mode="json"))
 
@@ -443,7 +443,7 @@ class Engine:
             r = s.get(SearchRequest, req.id)
             if outcome == "second":
                 r.level, r.state, r.search_parts = 4, "open", SECOND_SEARCH_PARTS
-                r.counter = ["1차 수색에서 못 찾음 · 같은 신호가 계속 잡힘"] + (r.counter or [])
+                r.counter = ["1차 수색에서 못 찾음, 같은 신호가 계속 잡힘"] + (r.counter or [])
             else:
                 r.state = outcome
             s.add(r)
@@ -508,7 +508,7 @@ class Engine:
         return [
             {"key": "nodes", "label": "수신기 연결", "value": f"{online}/{len(NODES)}대", "ok": online == len(NODES)},
             {"key": "beacon", "label": "기준 비콘", "value": "수신 중" if self.beacon_ok else "끊김", "ok": self.beacon_ok},
-            {"key": "clock", "label": "시계 동기화", "value": f"최대 {max(skews)}ms 차이 · 기준 {CLOCK_LIMIT_MS}ms" if skews else no_report,
+            {"key": "clock", "label": "시계 동기화", "value": f"최대 {max(skews)}ms 차이, 기준 {CLOCK_LIMIT_MS}ms" if skews else no_report,
              "ok": (max(skews) <= CLOCK_LIMIT_MS) if skews else None},
             {"key": "storage", "label": "저장 공간", "value": f"여유 {free:.0f}GB", "ok": free >= 1},
             {"key": "firmware", "label": "수신기 펌웨어 서명", "value": f"{sum(fw)}/{len(fw)}대 확인" if fw else no_report,
@@ -602,25 +602,25 @@ class Engine:
         t = self.t
         if kind == "server":
             when = clock(self.checkpoint_at, self.session.exam_start_label) if self.checkpoint_at is not None else "-"
-            await self.agent.log(t, "장비", f"현장 서버 재시작 감지 · 자동 재시작 중 · 마지막 저장 상태({when})로 이어서 판단", "alert")
+            await self.agent.log(t, "장비", f"현장 서버 재시작 감지, 자동 재시작 중, 마지막 저장 상태({when})로 이어서 판단", "alert")
         elif kind == "model":
             self.agent.locator.broken = True
-            await self.agent.log(t, "장비", "위치 모델 출력 이상 (범위 · 결측 검사 실패) · 이 모델만 건너뛰고 규칙 점수로 판단", "caution",
+            await self.agent.log(t, "장비", "위치 모델 출력 이상 (범위, 결측 검사 실패), 이 모델만 건너뛰고 규칙 점수로 판단", "caution",
                                  data={"calls": [], "skipped": ["위치"]})
         elif kind == "network":
-            await self.agent.log(t, "장비", "시험장 망 끊김 · 수신기와 서버 연결 상실 → 감시 중단, 수동 감독 모드 · 수신기는 자체 저장 공간에 계속 기록", "alert")
+            await self.agent.log(t, "장비", "시험장 망 끊김, 수신기와 서버 연결 상실 → 감시 중단, 수동 감독 모드, 수신기는 자체 저장 공간에 계속 기록", "alert")
         elif kind == "beacon":
             self.beacon_ok = False
-            await self.agent.log(t, "장비", "기준 비콘 세기 급변 · 세기 보정 정지, 직전 보정값으로 계속 판단", "caution")
+            await self.agent.log(t, "장비", "기준 비콘 세기 급변, 세기 보정 정지, 직전 보정값으로 계속 판단", "caution")
         elif kind == "clock":
             self.nodes["R1"]["skew_ms"] = 350
-            await self.agent.log(t, "장비", f"수신기 R1 시각 차 350ms (기준 {CLOCK_LIMIT_MS}ms 초과) · 내부 시간 서버로 재동기화, 그동안 R1 가중치 낮춤", "caution")
+            await self.agent.log(t, "장비", f"수신기 R1 시각 차 350ms (기준 {CLOCK_LIMIT_MS}ms 초과), 내부 시간 서버로 재동기화, 그동안 R1 가중치 낮춤", "caution")
         elif kind == "result":
-            await self.agent.log(t, "장비", "수색 결과 저장 확인 응답 없음 · 태블릿에 먼저 저장하고 연결되면 전송", "caution")
+            await self.agent.log(t, "장비", "수색 결과 저장 확인 응답 없음, 태블릿에 먼저 저장하고 연결되면 전송", "caution")
         elif kind == "app":
             a.until = None
             self.app_started = time.monotonic()
-            await self.agent.log(t, "장비", "감독관 앱 연결 끊김 (WebSocket 응답 없음) · 자동 재연결 중 · 그동안 휴대형 수신기 진동 · LED로 알림", "caution")
+            await self.agent.log(t, "장비", "감독관 앱 연결 끊김 (WebSocket 응답 없음), 자동 재연결 중, 그동안 휴대형 수신기 진동과 LED로 알림", "caution")
             await hub.drop_all(spec.dur)
         await self.broadcast_status()
 
@@ -635,7 +635,7 @@ class Engine:
                     continue
                 took = self._close_fault(a, time.monotonic() - self.app_started)
                 del self.active[kind]
-                await self.agent.log(self.t, "장비", f"감독관 앱 다시 연결 · {took:.0f}초 만에 복구 (목표 10초) · 놓친 알림 다시 보냄", "info")
+                await self.agent.log(self.t, "장비", f"감독관 앱 다시 연결, {took:.0f}초 만에 복구 (목표 10초), 놓친 알림 다시 보냄", "info")
                 await self.broadcast_status()
                 continue
             if a.until is None or self.t < a.until:
@@ -643,21 +643,21 @@ class Engine:
             took = self._close_fault(a)
             del self.active[kind]
             if kind == "server":
-                await self.agent.log(self.t, "장비", f"현장 서버 복구 · {took:.0f}초 (목표 30초 이내) · 수신기가 보관한 측정값 {a.resent}건 재전송받아 이어서 판단", "info")
+                await self.agent.log(self.t, "장비", f"현장 서버 복구, {took:.0f}초 (목표 30초 이내), 수신기가 보관한 측정값 {a.resent}건 재전송받아 이어서 판단", "info")
             elif kind == "model":
                 self.agent.locator.broken = False
-                await self.agent.log(self.t, "장비", "위치 모델 다시 불러옴 · AI 판단으로 복귀", "info")
+                await self.agent.log(self.t, "장비", "위치 모델 다시 불러옴, AI 판단으로 복귀", "info")
             elif kind == "network":
                 stored, self.local_store = self.local_store, 0
-                await self.agent.log(self.t, "장비", f"시험장 망 복구 · 감시 재개 · 수신기 자체 저장분 {stored}건 동기화 → 사후 리포트에 반영", "info")
+                await self.agent.log(self.t, "장비", f"시험장 망 복구, 감시 재개, 수신기 자체 저장분 {stored}건 동기화 → 사후 리포트에 반영", "info")
             elif kind == "beacon":
                 self.beacon_ok = True
-                await self.agent.log(self.t, "장비", "기준 비콘 정상 · 세기 보정 다시 시작", "info")
+                await self.agent.log(self.t, "장비", "기준 비콘 정상, 세기 보정 다시 시작", "info")
             elif kind == "clock":
                 self.nodes["R1"]["skew_ms"] = 9
-                await self.agent.log(self.t, "장비", f"수신기 R1 재동기화 완료 · 시각 차 9ms · {took:.0f}초", "info")
+                await self.agent.log(self.t, "장비", f"수신기 R1 재동기화 완료, 시각 차 9ms, {took:.0f}초", "info")
             elif kind == "result":
-                await self.agent.log(self.t, "장비", "결과 저장 응답 정상 · 대기 중인 결과는 앱이 자동으로 전송", "info")
+                await self.agent.log(self.t, "장비", "결과 저장 응답 정상, 대기 중인 결과는 앱이 자동으로 전송", "info")
             await self.broadcast_status()
 
     async def _observe_nodes(self, down: set[str]) -> None:
@@ -704,7 +704,7 @@ class Engine:
             self.rejected += 1
             if self.agent and ("bad", addr) not in self.agent.detected:
                 self.agent.detected.add(("bad", addr))
-                await self.agent.log(self.t, "보안", f"물리적으로 맞지 않는 측정값 조합 · {why} → 판단에서 빼고 경보", "alert")
+                await self.agent.log(self.t, "보안", f"물리적으로 맞지 않는 측정값 조합, {why} → 판단에서 빼고 경보", "alert")
                 await self.agent.detect("fake", None, self.t, why)
         return out
 
@@ -715,7 +715,7 @@ class Engine:
         self.new_times = [x for x in self.new_times if self.t - x <= 60] + [self.t] * len(new)
         if len(self.new_times) >= NEW_DEVICE_LIMIT and self.t - getattr(self, "_surge_at", -1e9) > 600:
             self._surge_at = self.t
-            await self.agent.log(self.t, "보안", f"1분 동안 새 기기 {len(self.new_times)}대 등장 · 평소보다 비정상적으로 많음 → 주소를 아주 자주 바꾸는 기기 의심, 관찰 강화", "caution")
+            await self.agent.log(self.t, "보안", f"1분 동안 새 기기 {len(self.new_times)}대 등장, 평소보다 비정상적으로 많음 → 주소를 아주 자주 바꾸는 기기 의심, 관찰 강화", "caution")
             await self.agent.detect("rotate", None, self.t, f"1분에 새 기기 {len(self.new_times)}대")
 
     async def _auto_walk(self) -> None:
@@ -776,22 +776,22 @@ class Engine:
             msg = "부정행위자 역할: 5번 좌석 이어폰이 15초마다 주소를 바꿈"
         elif kind == "fake":
             self.replay.fake_until = t + 60
-            msg = "외부 조력자 역할: 인증서 없는 수신기 R9 · 불가능한 세기의 측정값을 60초 동안 주입"
+            msg = "외부 조력자 역할: 인증서 없는 수신기 R9로 불가능한 세기의 측정값을 60초 동안 주입"
         elif kind == "ap":
             msg = "외부 조력자 역할: 시험장 밖에서 수신기 전용 AP에 접속 시도"
-            await self.agent.log(t, "보안", "수신기 전용 AP에 인증서 없는 기기가 접속 시도 (WPA3 · 수신기 인증서 없음) → 차단 · 새 Wi-Fi 기기로 경보", "alert")
+            await self.agent.log(t, "보안", "수신기 전용 AP에 인증서 없는 기기가 접속 시도 (WPA3, 수신기 인증서 없음) → 차단, 새 Wi-Fi 기기로 경보", "alert")
             await self.agent.detect("ap", None, t, "인증서 없는 기기의 AP 접속 차단")
         elif kind == "account":
-            msg = "외부 조력자 역할: 탈취한 관리자 계정으로 시험 중 허용 목록 · 기준값 변경 시도"
+            msg = "외부 조력자 역할: 탈취한 관리자 계정으로 시험 중 허용 목록과 기준값 변경 시도"
             with Session(db) as s:
                 for path in ("/api/allowlist", "/api/settings/thresholds"):
                     s.add(AccessLog(session_id=self.session.id, role="admin", method="POST", path=path, action="변경", status=423, allowed=False))
                 s.commit()
-            await self.agent.log(t, "보안", "관리자 계정으로 시험 중 허용 목록 · 기준값 변경 시도 → 시험 중 잠금으로 거부, 접근 기록에 남김", "alert")
-            await self.agent.detect("account", None, t, "허용 목록 · 기준값 변경 2건 거부 (잠금)")
+            await self.agent.log(t, "보안", "관리자 계정으로 시험 중 허용 목록과 기준값 변경 시도 → 시험 중 잠금으로 거부, 접근 기록에 남김", "alert")
+            await self.agent.detect("account", None, t, "허용 목록과 기준값 변경 2건 거부 (잠금)")
         else:
             msg = kind
-        await self.agent.log(t, "보안", f"[재현] {msg}", "info")  # 재현 기기는 몇 분 뒤 꺼져 다른 재현과 섞이지 않음
+        await self.agent.log(t, "보안", f"[훈련] {msg}", "info")  # 재현 기기는 몇 분 뒤 꺼져 다른 재현과 섞이지 않음
         await self.broadcast_status()
 
     def attack_runs(self) -> list[dict[str, Any]]:

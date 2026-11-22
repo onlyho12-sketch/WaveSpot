@@ -38,7 +38,7 @@ export function StateBand({ states, total, now, height = "h-7", showNow = true }
       {segs.filter((g) => g.v).map((g) => (
         <div key={g.from} className={cn("absolute inset-y-0 flex items-center overflow-hidden border-r border-surface/70 px-1.5 text-fs11 font-semibold whitespace-nowrap text-white", FILL[g.v!])}
           style={{ left: `${(g.from / total) * 100}%`, width: `${((g.to - g.from) / total) * 100}%` }}
-          title={`${NAME[g.v!]} · ${g.to - g.from}분`}>
+          title={`${NAME[g.v!]} ${g.to - g.from}분`}>
           {g.v !== "ok" && (g.to - g.from) / total > 0.06 ? NAME[g.v!] : ""}
         </div>
       ))}
@@ -67,7 +67,7 @@ export function StateTimeline({ clock, events, requests, startLabel }: { clock: 
   return (
     <div>
       <div className="grid grid-cols-[64px_1fr] items-center gap-3">
-        <span className="text-fs13 font-semibold text-fg-2">교시 진행</span>
+        <span className="text-fs13 font-semibold text-fg-2">시험 진행</span>
         <StateBand states={states} total={total} now={now} />
       </div>
       <div className="grid grid-cols-[64px_1fr] gap-3">

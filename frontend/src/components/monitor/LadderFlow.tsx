@@ -14,16 +14,16 @@ import { cn, type Tone } from "@/lib/utils"
 type Id = "lv0" | "lv1" | "lv2" | "lv3" | "result" | "found" | "fp" | "lv4" | "unresolved"
 
 const STEPS: { id: Id; tag: string; name: string; when: string; tone: Tone }[] = [
-  { id: "lv0", tag: "Lv0", name: "감시", when: "허용 목록 밖 신호 없음 · 화면에 알림 없음", tone: "ok" },
-  { id: "lv1", tag: "Lv1", name: "추가 관찰", when: "위험 40~69점 · 확신 부족 → 30초 더 관찰", tone: "warn" },
-  { id: "lv2", tag: "Lv2", name: "휴대형 접근", when: "60점 이상 + 구역 확신, 또는 영상 · 사진 전송 패턴", tone: "warn" },
+  { id: "lv0", tag: "Lv0", name: "감시", when: "허용 목록 밖 신호 없음, 화면에 알림 없음", tone: "ok" },
+  { id: "lv1", tag: "Lv1", name: "추가 관찰", when: "위험 40~69점, 확신 부족 → 30초 더 관찰", tone: "warn" },
+  { id: "lv2", tag: "Lv2", name: "휴대형 접근", when: "60점 이상 + 구역 확신, 또는 영상 통화나 사진 전송 패턴", tone: "warn" },
   { id: "lv3", tag: "Lv3", name: "정밀 수색", when: "70점 이상 30초 연속 + 근거 2개 이상 → 금속탐지기", tone: "danger" },
 ]
 
 const BRANCH: { id: Id; name: string; then: string; learn: string; tone: Tone }[] = [
-  { id: "found", name: "발견", then: "시험 규정대로 처리", learn: "정답으로 기록 · 시험 후 학습", tone: "neutral" },
-  { id: "fp", name: "미발견 · 신호 사라짐", then: "잘못 잡은 신호 (오탐)", learn: "오탐으로 기록 · 시험 후 학습", tone: "neutral" },
-  { id: "lv4", name: "미발견 · 신호 계속", then: "Lv4 2차 수색 · 소지품 · 책상 · 다른 부위", learn: "학습 보류", tone: "danger" },
+  { id: "found", name: "발견", then: "시험 규정대로 처리", learn: "정답으로 기록, 시험 후 학습", tone: "neutral" },
+  { id: "fp", name: "미발견 (신호 사라짐)", then: "잘못 잡은 신호 (오탐)", learn: "오탐으로 기록, 시험 후 학습", tone: "neutral" },
+  { id: "lv4", name: "미발견 (신호 계속)", then: "Lv4 2차 수색 (소지품, 책상, 다른 부위)", learn: "학습 보류", tone: "danger" },
 ]
 
 /** 요청 상태 → 지금 위치 · 지나온 단계 */
@@ -85,7 +85,7 @@ export function LadderFlow({ req, counts, className, wide = false }: {
   )
 
   return (
-    <div className={cn("@container text-fs14", className)} aria-label="대응 단계 흐름">
+    <div className={cn("@container text-fs14", className)} aria-label="에이전트 경보 단계 흐름">
       {wide ? (
         <div className="flex flex-col expanded:flex-row expanded:items-stretch">
           {STEPS.map((s, i) => (
@@ -106,7 +106,7 @@ export function LadderFlow({ req, counts, className, wide = false }: {
         ))
       )}
       {down}
-      {box("result", "neutral", <div className="text-center font-semibold">수색 결과 입력 <span className="font-normal text-fg-3">· 판정은 사람이 함</span></div>)}
+      {box("result", "neutral", <div className="text-center font-semibold">수색 결과 입력 <span className="font-normal text-fg-3">(판정은 사람이 함)</span></div>)}
 
       {/* 세 갈래 · 담긴 칸이 좁으면(근거 서랍 · 휴대폰) 세로로 쌓음 */}
       <div className="relative mt-1 grid grid-cols-1 gap-2 pt-1 @lg:grid-cols-3 @lg:pt-4">
@@ -131,7 +131,7 @@ export function LadderFlow({ req, counts, className, wide = false }: {
           {box("unresolved", "warn", (
             <div className="pr-9">
               <div className="text-fs13 font-bold">2차에서도 미발견</div>
-              <div className="mt-0.5 text-fs12 leading-snug text-fg-2">미해결 기록 · 시험 후 사람이 검토해 결과를 정함</div>
+              <div className="mt-0.5 text-fs12 leading-snug text-fg-2">미해결로 기록. 시험 후 사람이 검토해 결과를 정함</div>
             </div>
           ))}
         </div>

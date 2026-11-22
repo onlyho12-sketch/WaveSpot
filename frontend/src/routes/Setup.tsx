@@ -19,7 +19,7 @@ export function Setup() {
   const scenarios = useQuery({ queryKey: ["scenarios"], queryFn: api.scenarios })
   const [busy, setBusy] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [name, setName] = useState("3교시 수학")
+  const [name, setName] = useState("컴퓨터활용능력 2급")
   const [scenario, setScenario] = useState("demo")
   const [checks, setChecks] = useState<Record<string, boolean>>({})
   const doneCount = CHECKS.filter((c) => checks[c.key]).length
@@ -88,7 +88,7 @@ export function Setup() {
               </tr>
             </tbody>
           </table>
-          <p className="border-t border-line px-4 py-2 text-xs text-fg-3">최근 10초 기준 · 시험 중에는 1분마다 갱신 · 받은 신호가 0이면 주의</p>
+          <p className="border-t border-line px-4 py-2 text-xs text-fg-3">최근 10초 기준이며 시험 중에는 1분마다 갱신합니다. 받은 신호가 0이면 확인하세요</p>
           {sysChecks.length > 0 && (
             <ul className="grid divide-line border-t border-line text-sm medium:grid-cols-2 medium:divide-x">
               {sysChecks.map((c) => (
@@ -112,7 +112,7 @@ export function Setup() {
               {status?.allowlist.map((a) => (
                 <li key={a.device_id} className="flex items-center gap-3 px-4 py-2.5">
                   <Status tone="ok">허용</Status>
-                  <span>{a.label.split(" · ")[0]}</span>
+                  <span>{a.label.split(", ")[0]}</span>
                 </li>
               ))}
             </ul>
@@ -211,7 +211,7 @@ export function Setup() {
 
 /** 시험 전 확인 (v10 시험 전 절차) · 다 체크해야 감시 시작 */
 const CHECKS = [
-  { key: "collect", label: "휴대폰 · 스마트워치 수거" },
+  { key: "collect", label: "휴대폰, 스마트워치 수거" },
   { key: "pouch", label: "수거한 기기를 차폐 파우치에 보관" },
 ]
 

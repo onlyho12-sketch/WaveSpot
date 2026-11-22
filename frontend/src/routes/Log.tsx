@@ -19,7 +19,7 @@ import { clockOf, cn, DONE_LABEL, isOpen, type Tone } from "@/lib/utils"
 const FILTERS = [
   { key: "main", label: "주요", test: (e: AgentEvent) => e.level === "alert" || e.level === "done" || ["결과 반영", "장비", "준비", "보안"].includes(e.stage) || e.message.includes("순회") },
   { key: "all", label: "전체", test: () => true },
-  { key: "equip", label: "장비 · 보안", test: (e: AgentEvent) => e.stage === "장비" || e.stage === "준비" || e.stage === "보안" },
+  { key: "equip", label: "장비 및 보안", test: (e: AgentEvent) => e.stage === "장비" || e.stage === "준비" || e.stage === "보안" },
 ] as const
 
 const TRACKS: { label: string; test: (e: AgentEvent) => boolean; cls: string }[] = [
@@ -28,7 +28,7 @@ const TRACKS: { label: string; test: (e: AgentEvent) => boolean; cls: string }[]
   { label: "수색 요청", test: (e) => e.level === "alert", cls: "bg-danger" },
   { label: "결과", test: (e) => e.stage === "결과 반영" || e.level === "done", cls: "bg-ok" },
   { label: "장비", test: (e) => e.stage === "장비", cls: "bg-fg" },
-  { label: "보안", test: (e) => e.stage === "보안" && !e.message.startsWith("[재현]"), cls: "bg-danger" },
+  { label: "보안", test: (e) => e.stage === "보안" && !e.message.startsWith("[훈련]"), cls: "bg-danger" },
 ]
 
 export function Log() {
@@ -78,7 +78,7 @@ export function Log() {
   return (
     <div className="flex flex-col gap-3 medium:gap-4">
       {/* 종합 소견 */}
-      <Panel title="종합 소견" aside={<span>이번 교시 · 기기 기준</span>}>
+      <Panel title="종합 소견" aside={<span>기기 수 기준</span>}>
         <div className="grid expanded:grid-cols-[minmax(0,1fr)_minmax(0,0.9fr)] expanded:divide-x divide-line">
           <div className="space-y-2 px-4 py-4 medium:px-5">
             <SummaryBar tone="danger" label="수색 요청" value={summary.request} max={Math.max(1, summary.request + summary.watch + summary.clean)} />
@@ -97,7 +97,7 @@ export function Log() {
       </Panel>
 
       {/* 트랙별 타임라인 */}
-      <Panel title="교시 타임라인" bodyClass="px-4 py-4">
+      <Panel title="타임라인" bodyClass="px-4 py-4">
         <div className="grid grid-cols-[72px_1fr] items-center gap-x-3 gap-y-2 medium:grid-cols-[88px_1fr]">
           <span className="text-fs13 font-semibold">상태</span>
           <StateBand states={states} total={total} now={now} height="h-6" />
@@ -112,7 +112,7 @@ export function Log() {
       {/* 수색 내역 표 */}
       <Panel title={<>수색 내역 <span className="num font-medium text-fg-3">{requests.length}</span></>}>
         {requests.length === 0 ? (
-          <div className="px-4 py-8 text-center text-sm text-fg-3">수색 요청 없음 · 정상 교시</div>
+          <div className="px-4 py-8 text-center text-sm text-fg-3">수색 요청 없음 (정상 시험)</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[640px] text-sm">
@@ -164,10 +164,10 @@ function SummaryBar({ tone, label, value, max }: { tone: "danger" | "warn" | "ne
   return (
     <div className="grid grid-cols-[6.5rem_1fr_3rem] items-center gap-3">
       <Status tone={tone as Tone}><span className="text-fs15 font-semibold">{label}</span></Status>
-      <div className="h-7 overflow-hidden rounded-md bg-subtle">
+      <div className="h-5 overflow-hidden rounded-md bg-subtle">
         <div className={cn("h-full rounded-md transition-[width]", BAR[tone])} style={{ width: `${value === 0 ? 0 : Math.max(4, (value / max) * 100)}%` }} />
       </div>
-      <span className={cn("num text-right text-fs22 leading-none font-bold", tone === "danger" && value > 0 && "text-danger")}>{value}</span>
+      <span className={cn("num text-right text-fs17 leading-none font-bold", tone === "danger" && value > 0 && "text-danger")}>{value}</span>
     </div>
   )
 }
@@ -234,7 +234,7 @@ function Notes({ sessionId }: { sessionId: number | null }) {
       )}
       <form onSubmit={submit} className="flex gap-2 border-t border-line p-3">
         <label htmlFor="note-text" className="sr-only">의견</label>
-        <input id="note-text" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="의견을 적으세요 (예: 27번 가방 확인 · 이상 없음)"
+        <input id="note-text" value={text} onChange={(e) => setText(e.target.value)} maxLength={500} placeholder="예: 27번 가방 확인, 이상 없음"
           className="h-11 min-w-0 flex-1 rounded-md border border-line-strong bg-surface px-3 text-fs15 placeholder:text-fg-3 focus:border-brand focus:outline-none" />
         <Button type="submit" disabled={!text.trim() || add.isPending || sessionId == null}>등록</Button>
       </form>
@@ -245,9 +245,9 @@ function Notes({ sessionId }: { sessionId: number | null }) {
 
 function Big({ label, value }: { label: string; value: number }) {
   return (
-    <div className="px-5 py-4">
+    <div className="px-4 py-3 medium:px-5">
       <div className="text-fs13 font-semibold text-fg-3">{label}</div>
-      <div className="num mt-1 text-fs36 leading-none font-bold">{value}</div>
+      <div className="num mt-1 text-fs22 leading-none font-bold">{value}<span className="ml-0.5 text-fs14 font-semibold text-fg-3">건</span></div>
     </div>
   )
 }

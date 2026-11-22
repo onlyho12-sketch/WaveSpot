@@ -67,7 +67,7 @@ class Locator:
             vals[0][sim.NODES.index(n)] = MISSING
         heard = int((vals > MISSING).sum())
         strongest = float(vals.max())
-        reason = f"가장 강한 수신기 {strongest:.0f} dBm · 수신기 {heard}/4"
+        reason = f"가장 강한 수신기 {strongest:.0f} dBm, 수신기 {heard}/4"
         if self.broken:
             return self._rule(vals[0], heard, strongest, reason, nodes_ok, "규칙 (모델 오류)")
         if nodes_ok == 3 and len(down) == 1 and down[0] in self.three:
@@ -94,7 +94,7 @@ class Locator:
         py = sum(w[i] * sim.NODE_XY[n][1] for i, n in enumerate(sim.NODES))
         r = min(sim.ROWS - 1, max(0, int(py // sim.ROW_Y))); half = 1 if px >= sim.ROOM_W / 2 else 0
         z = r * 2 + half + 1
-        return LocationResult(inside, 1.0 if inside else 0.0, reason + f" · 수신기 {nodes_ok}/4 정상", z, 1.0,
+        return LocationResult(inside, 1.0 if inside else 0.0, reason + f", 수신기 {nodes_ok}/4 정상", z, 1.0,
                               {k: float(k == z) for k in range(1, 9)}, method, heard, strongest)
 
     def usage(self, feat: dict[str, float] | None) -> tuple[str, float] | None:

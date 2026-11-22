@@ -84,7 +84,7 @@ export function SeatMap({ rows, cols, zones = [], seats = {}, nodes = {}, compac
         <div className="min-w-0">
           {/* 앞쪽: 교탁 + 감독관석 (감독관은 교탁 옆 · 입실 전 기준선에서 감독관 폰이 교탁 자리로 등록됨) */}
           <div className={cn("relative mx-auto flex items-center justify-center", compact ? "mb-1.5" : "mb-3 max-w-[680px]")}>
-            <Landmark className={compact ? "h-6 w-1/2 text-fs11" : "h-8 w-[46%]"}>{compact ? "교탁 · 감독관" : "교탁"}</Landmark>
+            <Landmark className={compact ? "h-6 w-1/2 text-fs11" : "h-8 w-[46%]"}>{compact ? "교탁과 감독관" : "교탁"}</Landmark>
             {!compact && <Landmark className="absolute right-[6%] h-8 w-[18%]">감독관석</Landmark>}
           </div>
 

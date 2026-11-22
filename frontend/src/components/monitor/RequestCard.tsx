@@ -19,7 +19,7 @@ const TITLE: Record<number, string> = { 2: "휴대형 접근 요청", 3: "정밀
 export const requestTitle = (r: SearchRequest) => TITLE[r.level] ?? "요청"
 export const target = (r: SearchRequest) => (r.suspect_seat && r.level >= 3 ? `${r.suspect_seat}번 좌석` : `${r.zone}구역`)
 export const targetSub = (r: SearchRequest) =>
-  r.suspect_seat && r.level >= 3 ? r.kind + " 추정" : `${r.seats[0]}~${r.seats.at(-1)}번${r.zone2 ? ` · 2순위 ${r.zone2}구역` : ""}`
+  r.suspect_seat && r.level >= 3 ? r.kind + " 추정" : `${r.seats[0]}~${r.seats.at(-1)}번${r.zone2 ? `, 2순위 ${r.zone2}구역` : ""}`
 
 /** 대응 단계 이름 (휴대폰은 짧게) */
 export const LADDER = [
@@ -123,11 +123,11 @@ export function RequestCard({ req, startLabel = "09:00", flush = false }: { req:
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5 text-fs13 font-semibold">
             <span className={tone === "danger" ? "text-danger" : "text-warn"}>{requestTitle(req)}</span>
-            {since && <span className="num font-medium text-fg-3">· {since}부터</span>}
+            {since && <span className="num font-medium text-fg-3">{since}부터</span>}
             {usesRule(req) && <Tag tone="warn" className="ml-auto" >규칙 점수</Tag>}
             {req.state === "searching" && <Tag tone="brand" className={usesRule(req) ? "" : "ml-auto"}>순회 중</Tag>}
           </div>
-          <div className="mt-0.5 text-fs19 leading-snug font-bold">{target(req)} · {req.kind} 추정</div>
+          <div className="mt-0.5 text-fs19 leading-snug font-bold">{target(req)} {req.kind} 추정</div>
           {zoneCase && <div className="num text-fs13 text-fg-3">{targetSub(req)}</div>}
           <ul className="mt-2 space-y-1">
             {topReasons(req).map((e) => (
@@ -154,7 +154,7 @@ export function RequestCard({ req, startLabel = "09:00", flush = false }: { req:
 }
 
 /** 근거 문장을 감독관용으로 줄임: 괄호 속 기술값 · 두 번째 이후 항목 제거 */
-const plain = (v: string) => v.replace(/\s*\([^)]*\)/g, "").split(" · ")[0].replace("안일 확률", "가능성")
+const plain = (v: string) => v.replace(/\s*\([^)]*\)/g, "").split(", ")[0].replace("안일 확률", "가능성")
 
 export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest; open: boolean; onOpenChange: (o: boolean) => void }) {
   const events = useLive((s) => s.events)
@@ -167,11 +167,11 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
     <Sheet
       open={open}
       onOpenChange={onOpenChange}
-      title={`${target(req)} · ${req.kind} 추정`}
+      title={`${target(req)} ${req.kind} 추정`}
       description={
         <span className="num">
           {since ? `${since}부터 감지` : ""}
-          {!isOpen(req) && ` · ${DONE_LABEL[req.state]}${req.found_seat ? ` (${req.found_seat}번)` : ""}`}
+          {!isOpen(req) && `, ${DONE_LABEL[req.state]}${req.found_seat ? ` (${req.found_seat}번)` : ""}`}
         </span>
       }
       top={<Tracker steps={LADDER} current={req.level - 1} tone={tone} />}
@@ -186,7 +186,7 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
     >
       {usesRule(req) && (
         <p className="border-b border-line bg-warn-soft px-5 py-2.5 text-fs14 text-warn">
-          <b>규칙 점수</b> · 장비나 AI 모델에 이상이 있어 이 판단은 AI 대신 규칙으로 계산했습니다. 위치가 덜 정확할 수 있습니다.
+          <b>규칙 점수</b>: 장비나 AI 모델에 이상이 있어 이 판단은 AI 대신 규칙으로 계산했습니다. 위치가 덜 정확할 수 있습니다.
         </p>
       )}
 
@@ -212,7 +212,7 @@ export function EvidenceSheet({ req, open, onOpenChange }: { req: SearchRequest;
         <Steps items={["위 부위를 금속탐지기로 확인", "결과 입력", "발견한 기기는 차폐 파우치에 보관"]} />
       </Section>
 
-      <Section title="대응 단계" defaultOpen={false}>
+      <Section title="에이전트 경보 단계" defaultOpen={false}>
         <LadderFlow req={req} />
       </Section>
     </Sheet>
@@ -254,7 +254,7 @@ function SourceTabs({ req, facts }: { req: SearchRequest; facts: Evidence[] }) {
         ))}
       </div>
       {tab === "fixed" && rows(fixed)}
-      {tab === "wifi" && (wifi.length ? rows(wifi) : <p className="py-4 text-center text-sm text-fg-3">Wi-Fi 신호 없음 · 블루투스만 잡힘</p>)}
+      {tab === "wifi" && (wifi.length ? rows(wifi) : <p className="py-4 text-center text-sm text-fg-3">Wi-Fi 신호 없음 (블루투스만 잡힘)</p>)}
       {tab === "hand" && (walk.length ? (
         <ul className="space-y-1.5 py-1">
           <li className="pb-1 text-fs13 text-fg-3">순회 중 신호가 강했던 좌석 순서</li>

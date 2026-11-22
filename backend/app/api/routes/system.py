@@ -38,11 +38,11 @@ def attacks(request: Request):
 async def inject_attack(kind: str):
     """우회 · 해킹 재현 (관리자 · 재생 모드 · 시험 중). 설계안 20장 실험 8."""
     if kind not in ATTACKS or not ATTACKS[kind].replay:
-        raise HTTPException(404, "재현할 수 없는 항목입니다")
+        raise HTTPException(404, "모의 훈련을 할 수 없는 항목입니다")
     if settings.source != "replay":
-        raise HTTPException(409, "실제 수신기 모드에서는 재현할 수 없습니다")
+        raise HTTPException(409, "실제 수신기 모드에서는 모의 훈련을 할 수 없습니다")
     if not engine.session or engine.session.state != "running":
-        raise HTTPException(409, "시험 중에만 재현할 수 있습니다")
+        raise HTTPException(409, "시험 중에만 모의 훈련을 할 수 있습니다")
     await engine.inject_attack(kind)
     return {"runs": engine.attack_runs()}
 
@@ -77,9 +77,9 @@ async def inject(kind: str):
     if kind not in CATALOG:
         raise HTTPException(404, "모르는 장애 종류입니다")
     if settings.source != "replay":
-        raise HTTPException(409, "실제 수신기 모드에서는 재현할 수 없습니다")
+        raise HTTPException(409, "실제 수신기 모드에서는 모의 훈련을 할 수 없습니다")
     if not engine.session or engine.session.state != "running":
-        raise HTTPException(409, "시험 중에만 재현할 수 있습니다")
+        raise HTTPException(409, "시험 중에만 모의 훈련을 할 수 있습니다")
     await engine.inject(kind)
     return engine.status()
 
@@ -94,7 +94,7 @@ def verify(s: Session = Depends(get_session)):
 def access(request: Request, limit: int = 100, s: Session = Depends(get_session)):
     """접근 기록 (관리자 · 감사만)."""
     if role_of(request) not in ("admin", "auditor"):
-        return JSONResponse({"detail": "접근 기록은 관리자 · 감사 역할만 볼 수 있습니다"}, 403)
+        return JSONResponse({"detail": "접근 기록은 관리자와 검토자 역할만 볼 수 있습니다"}, 403)
     rows = s.exec(select(AccessLog).order_by(AccessLog.id.desc()).limit(min(limit, 500))).all()
     return [{**r.model_dump(mode="json"), "role_name": ROLES.get(r.role, r.role)} for r in rows]
 
@@ -113,6 +113,6 @@ def export(s: Session = Depends(get_session)):
                    for e in s.exec(select(AgentEvent).where(AgentEvent.session_id == sid).order_by(AgentEvent.id))],
         "notes": [n.model_dump(mode="json") for n in s.exec(select(SupervisorNote).where(SupervisorNote.session_id == sid).order_by(SupervisorNote.id))],
         "faults": _fault_rows(s, sid),
-        "privacy": "기기 주소는 수신기에서 해시한 값 · 수험생 이름 대신 좌석 번호 · 통신 내용은 수집하지 않음",
+        "privacy": "기기 주소는 수신기에서 해시한 값, 수험생 이름 대신 좌석 번호, 통신 내용은 수집하지 않음",
     }
     return JSONResponse(body, headers={"Content-Disposition": f'attachment; filename="wavespot_report_{sid}.json"'})

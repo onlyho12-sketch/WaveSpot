@@ -22,8 +22,8 @@ export const NODE_PLACE: Record<string, string> = { R1: "앞 왼쪽", R2: "앞 �
 export const LEVELS = [
   { lv: 0, name: "감시", desc: "허용 목록 밖 신호 없음" },
   { lv: 1, name: "추가 관찰", desc: "30초 더 관찰" },
-  { lv: 2, name: "휴대형 접근", desc: "구역 순회 · 좌석 옆 2초" },
-  { lv: 3, name: "정밀 수색", desc: "의심 좌석 · 금속탐지기" },
+  { lv: 2, name: "휴대형 접근", desc: "구역 순회 (좌석 옆 2초)" },
+  { lv: 3, name: "정밀 수색", desc: "의심 좌석을 금속탐지기로" },
   { lv: 4, name: "2차 수색", desc: "신호가 남으면 다시" },
 ] as const
 
@@ -60,7 +60,17 @@ export const ROOM_MODEL = "이상"
 export const ALL_MODEL_KEYS = [ROOM_MODEL, ...MODEL_KEYS] as const
 
 /** 에이전트가 부르는 AI 모델 이름 (서버 data.calls 값) → 화면 이름 */
-export const MODEL_LABEL: Record<string, string> = { 이상: "이상 감지", 묶기: "기기 연결", "안/밖": "교실 안/밖" }
+export const MODEL_LABEL: Record<string, string> = {
+  이상: "이상 감지", 묶기: "기기 묶기", "안/밖": "위치 추정", 위치: "위치 추정", 종류: "기기 종류", 용도: "Wi-Fi 용도", 점수: "위험 점수",
+}
+/** 기기마다 부르는 모델 5개 (위치 추정 = 교실 안/밖 → 구역 두 단계를 한 모델로 셈) · 여기에 교실 전체 이상 감지 1개 = 6개 */
+export const DEVICE_MODELS: { name: string; keys: string[] }[] = [
+  { name: "기기 묶기", keys: ["묶기"] },
+  { name: "위치 추정", keys: ["안/밖", "위치"] },
+  { name: "기기 종류", keys: ["종류"] },
+  { name: "Wi-Fi 용도", keys: ["용도"] },
+  { name: "위험 점수", keys: ["점수"] },
+]
 export const modelName = (m: string) => MODEL_LABEL[m] ?? m
 
 export const DONE_LABEL: Record<string, string> = { found: "기기 발견", not_found: "미발견", unresolved: "미해결", allowed: "허용 등록" }

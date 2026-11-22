@@ -52,12 +52,12 @@ export function ChainPanel({ sessionId }: { sessionId: number | null }) {
               {v.ok ? <ShieldCheck className="size-9 text-ok" /> : <ShieldAlert className="size-9 text-danger" />}
               <div>
                 <div className={cn("text-fs19 font-bold", v.ok ? "text-ok" : "text-danger")}>{v.ok ? "고친 흔적 없음" : "기록이 바뀌었습니다"}</div>
-                <div className="num text-fs13 text-fg-3">기록 {v.count.toLocaleString()}건 · 판단 · 결과 · 의견마다 앞 기록과 연결한 해시로 확인</div>
+                <div className="num text-fs13 text-fg-3">기록 {v.count.toLocaleString()}건. 판단, 결과, 의견마다 앞 기록과 연결한 해시로 확인</div>
               </div>
             </div>
             {v.last_hash && (
               <div className="min-w-0">
-                <div className="text-fs12 font-semibold text-fg-3">마지막 값 · 시험 종료 때 감독관 확인서에 적어 둡니다</div>
+                <div className="text-fs12 font-semibold text-fg-3">마지막 값 (시험 종료 때 감독관 확인서에 적어 둡니다)</div>
                 <div className="num mt-0.5 font-mono text-fs17 font-bold tracking-wide" title={v.last_hash}>{shortHash(v.last_hash)}</div>
               </div>
             )}
@@ -70,7 +70,7 @@ export function ChainPanel({ sessionId }: { sessionId: number | null }) {
       </div>
       {v && !v.ok && v.broken && (
         <p role="alert" className="border-t border-line bg-danger-soft px-5 py-2.5 text-sm font-semibold text-danger">
-          {v.broken.seq ? `${v.broken.seq}번째 기록부터 ` : ""}{v.broken.reason} · 이의 제기 때 이 리포트는 증거로 쓰기 어렵습니다.
+          {v.broken.seq ? `${v.broken.seq}번째 기록부터 ` : ""}{v.broken.reason}. 이의 제기 때 이 리포트는 증거로 쓰기 어렵습니다.
         </p>
       )}
       {stale && v?.ok && <p className="border-t border-line px-5 py-2 text-fs13 text-fg-3">확인 뒤 새 기록이 쌓였습니다. 시험이 끝나면 다시 확인하세요.</p>}
@@ -87,15 +87,15 @@ const took = (f: FaultRecord) => {
 }
 
 /** 장애 · 복구 기록 (시간순) */
-export function FaultLog({ sessionId, title = "장애 · 복구 기록", detail = false }: { sessionId: number | null; title?: string; detail?: boolean }) {
+export function FaultLog({ sessionId, title = "장애 및 복구 기록", detail = false }: { sessionId: number | null; title?: string; detail?: boolean }) {
   const active = useLive((s) => s.status?.health?.active.length ?? 0)
   const events = useLive((s) => s.events.filter((e) => e.stage === "장비").length)
   const q = useQuery({ queryKey: ["faults", sessionId, active, events], queryFn: api.faults, enabled: sessionId != null })
   const rows = q.data?.records ?? []
   return (
-    <Panel title={<>{title} <span className="num font-medium text-fg-3">{rows.length}</span></>} aside={<span>시간순 · 이의 제기 근거</span>}>
+    <Panel title={<>{title} <span className="num font-medium text-fg-3">{rows.length}</span></>}>
       {rows.length === 0 ? (
-        <p className="px-4 py-6 text-center text-sm text-fg-3">장애 없음 · 장비가 계속 정상이었습니다.</p>
+        <p className="px-4 py-6 text-center text-sm text-fg-3">장애 없음. 장비가 계속 정상이었습니다.</p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-sm">
@@ -116,11 +116,11 @@ export function FaultLog({ sessionId, title = "장애 · 복구 기록", detail 
                     <td className="num px-4 py-2.5 whitespace-nowrap text-fg-2">{f.clock.slice(0, 5)}{f.end_clock ? ` ~ ${f.end_clock.slice(0, 5)}` : ""}</td>
                     <td className="py-2.5">
                       <span className="font-semibold">{f.title}</span>
-                      {f.injected && <Tag className="ml-2">재현</Tag>}
+                      {f.injected && <Tag className="ml-2">훈련</Tag>}
                     </td>
                     {detail && <td className="py-2.5 pr-3 text-fs13 text-fg-2">{f.action}</td>}
                     <td className="px-4 py-2.5 whitespace-nowrap"><Status tone={t.tone}><span className="num">{t.text}</span></Status></td>
-                    <td className="num py-2.5 pr-4 text-right">{f.missed ? `${f.missed.toLocaleString()}건 · 수신기에 저장 후 동기화` : "-"}</td>
+                    <td className="num py-2.5 pr-4 text-right">{f.missed ? `${f.missed.toLocaleString()}건 (수신기에 저장 후 동기화)` : "-"}</td>
                   </tr>
                 )
               })}

@@ -10,7 +10,7 @@ SEARCH_PARTS = {
     "watch": ["손목", "소매"],
     "unknown": ["가장 강한 좌석 주변 전체"],
 }
-SECOND_SEARCH_PARTS = ["소지품 · 가방", "책상 안 · 아래", "다른 신체 부위", "차폐 파우치 재확인"]  # Lv4 2차 수색
+SECOND_SEARCH_PARTS = ["소지품과 가방", "책상 안쪽과 아래", "다른 신체 부위", "차폐 파우치 재확인"]  # Lv4 2차 수색
 
 
 def parts_by_signal(has_wifi: bool) -> list[str]:

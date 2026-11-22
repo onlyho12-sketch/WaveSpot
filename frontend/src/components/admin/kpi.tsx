@@ -19,16 +19,16 @@ export function Tile({ label, tone, value, unit, sub, small, children, onOpen }:
 }) {
   const body = (
     <>
-      <span className="flex w-full items-center gap-1.5 text-fs13 font-semibold text-fg-2">
+      <span className="flex w-full items-center gap-1.5 text-fs15 font-semibold text-fg-2">
         <Shape tone={tone} className="size-2.5" />
         {label}
         {onOpen && <ChevronRight className="ml-auto size-4 text-fg-3 opacity-0 transition-opacity group-hover:opacity-100" />}
       </span>
       <span className="mt-2 flex items-baseline gap-0.5">
-        <span className={cn("num leading-none font-bold", small ? "text-fs22" : "text-fs30", VALUE_TONE[tone] ?? "text-fg")}>{value}</span>
+        <span className={cn("num leading-none font-bold", small ? "text-fs22" : "text-fs26", VALUE_TONE[tone] ?? "text-fg")}>{value}</span>
         {unit && <span className="text-fs15 font-semibold text-fg-2">{unit}</span>}
       </span>
-      <span className="num mt-1.5 truncate text-xs text-fg-3">{sub}</span>
+      <span className="num mt-1.5 truncate text-fs14 text-fg-3">{sub}</span>
       {children && <span className="mt-auto block pt-3">{children}</span>}
     </>
   )

@@ -265,11 +265,11 @@ class Agent:
             self.anom_on = True
             why = [f"30초 동안 새 주소 {round(f[1] * ANOM_SPAN)}개", f"허용 목록 밖 주소 평균 {f[2]:.1f}개",
                    f"한 제조사 주소 최대 {f[3]:.1f}개"]
-            await self.log(t, "신호 감지", f"이상 감지 모델: 교실 전체 신호가 평소와 다름 (최근 30초 · 이상 점수 {score:.2f} · 기준 {thr:.2f})"
-                           + (f" · {' · '.join(why)}" if why else "") + " → 기기별로 확인", "caution",
+            await self.log(t, "신호 감지", f"이상 감지 모델: 교실 전체 신호가 평소와 다름 (최근 30초, 이상 점수 {score:.2f}, 기준 {thr:.2f})"
+                           + (f", {', '.join(why)}" if why else "") + " → 기기별로 확인", "caution",
                            data={"calls": [ROOM_MODEL], "skipped": [], "anomaly": self.anom_last})
             if f[4] * ANOM_SPAN >= 2:
-                await self.detect("rotate", None, t, f"이상 감지 모델 · 30초 동안 허용 목록 밖 새 주소 {round(f[4] * ANOM_SPAN)}개")
+                await self.detect("rotate", None, t, f"이상 감지 모델, 30초 동안 허용 목록 밖 새 주소 {round(f[4] * ANOM_SPAN)}개")
         elif self.anom_on and self.anom_calm >= ANOM_CLEAR:
             self.anom_on = False
             await self.log(t, "신호 감지", f"이상 감지 모델: 교실 전체 신호가 평소 수준으로 돌아옴 (이상 점수 {score:.2f})", "info",
@@ -298,9 +298,9 @@ class Agent:
         tr = self.tracks.setdefault(mid, Track(mid, first_t=t))
         tr.status, tr.level = "new", 0
         tr.flags.add("spoof")
-        await self.log(t, "보안", f"허용 기기({label.split(' · ')[0]})의 수신기 세기 패턴이 입실 전 자리와 {diff:.0f}dB 다름 → 좌석 쪽으로 옮겨진 것으로 보고 허용 해제 · 조사 시작 (정상 기기 위장 의심)",
+        await self.log(t, "보안", f"허용 기기({label.split(', ')[0]})의 수신기 세기 패턴이 입실 전 자리와 {diff:.0f}dB 다름 → 좌석 쪽으로 옮겨진 것으로 보고 허용 해제, 조사 시작 (정상 기기 위장 의심)",
                        "alert", mid)
-        await self.detect("spoof", mid, t, f"세기 패턴 차이 {diff:.1f}dB (기준 {SPOOF_DB}dB · 최근 5분 평균)")
+        await self.detect("spoof", mid, t, f"세기 패턴 차이 {diff:.1f}dB (기준 {SPOOF_DB}dB, 최근 5분 평균)")
         return True
 
     async def _habits(self, tr: Track, addr: str, t: float) -> None:
@@ -309,9 +309,9 @@ class Agent:
         if tr.last_seen is not None and t - tr.last_seen > BURST_GAP:
             tr.bursts += 1
             if tr.bursts == 2:
-                await self.log(t, "보안", f"같은 기기가 끊겼다 다시 잡힘 {tr.bursts + 1}번째 · 교시 누적 {int(tr.seen_sec)}초 → 짧게 끊어 보내는 패턴으로 보고 누적 점수에 반영",
+                await self.log(t, "보안", f"같은 기기가 끊겼다 다시 잡힘 {tr.bursts + 1}번째, 시험 중 누적 {int(tr.seen_sec)}초 → 짧게 끊어 보내는 패턴으로 보고 누적 점수에 반영",
                                "caution", tr.meta_id)
-                await self.detect("burst", tr.meta_id, t, f"{tr.bursts + 1}번 나눠 잡힘 · 누적 {int(tr.seen_sec)}초")
+                await self.detect("burst", tr.meta_id, t, f"{tr.bursts + 1}번 나눠 잡힘, 누적 {int(tr.seen_sec)}초")
         tr.seen_sec += win
         tr.last_seen = t
         if tr.addr and addr != tr.addr:
@@ -332,16 +332,16 @@ class Agent:
         prev = self.nodes_ok
         if nodes_ok == prev:
             return
-        who = " · ".join(self.down)
+        who = ", ".join(self.down)
         if nodes_ok == 3:
             how = "3대용 위치 모델로 전환" if self.down and self.down[0] in self.locator.three else "남은 수신기로 위치를 대략 계산 (3대용 모델 없음)"
-            await self.log(t, "장비", f"수신기 {who} 끊김 · {how} · 구역 표시 한 단계 넓힘", "caution",
+            await self.log(t, "장비", f"수신기 {who} 끊김, {how}, 구역 표시 한 단계 넓힘", "caution",
                            data={"calls": ["위치"], "skipped": []})
         elif nodes_ok <= 2:
-            await self.log(t, "장비", f"수신기 {who} 끊김 ({nodes_ok}/4) · 위치 추정 중지, 숨은 기기가 있는지만 판단 · 휴대형 순회 권장", "alert",
+            await self.log(t, "장비", f"수신기 {who} 끊김 ({nodes_ok}/4), 위치 추정 중지, 숨은 기기가 있는지만 판단, 휴대형 순회 권장", "alert",
                            data={"calls": [], "skipped": ["위치"]})
         elif nodes_ok == 4:
-            await self.log(t, "장비", "수신기 4/4 복구 · 4대용 위치 모델로 복귀", "info")
+            await self.log(t, "장비", "수신기 4/4 복구, 4대용 위치 모델로 복귀", "info")
         self.nodes_ok = nodes_ok
 
     async def _link_new(self, addr: str, w: dict, t: float, active: set[str]) -> str:
@@ -352,10 +352,10 @@ class Agent:
             kind, cand, sim = "link", h, dict(cands).get(h, sim)
         if kind == "link" and cand:
             if cand in self.allow:
-                await self.log(t, "신호 감지", f"허용된 기기가 주소만 바꾼 것 (같은 기기 확률 {sim:.0%}) · 확인 끝",
+                await self.log(t, "신호 감지", f"허용된 기기가 주소만 바꾼 것 (같은 기기 확률 {sim:.0%}), 확인 끝",
                                "info", cand, self._calls(["묶기"]))
             elif cand in self.tracks:
-                await self.log(t, "신호 감지", f"주소만 바뀐 같은 기기 (같은 기기 확률 {sim:.0%}) · 이어서 확인",
+                await self.log(t, "신호 감지", f"주소만 바뀐 같은 기기 (같은 기기 확률 {sim:.0%}), 이어서 확인",
                                "info", cand, self._calls(["묶기"]))
             return cand
         mid = f"m-{addr}"
@@ -363,7 +363,7 @@ class Agent:
             tr = self.tracks[mid] = Track(mid, first_t=t)
             tr.hold = {"candidate": cand, "until": t + 30}
             tr.flags.add("hold")
-            await self.log(t, "신호 감지", f"비슷한 기기가 여럿이라 같은 기기인지 아직 모름 (1 · 2순위 확률 차이 {gap:.0%}) · 30초 더 지켜봄",
+            await self.log(t, "신호 감지", f"비슷한 기기가 여럿이라 같은 기기인지 아직 모름 (1, 2순위 확률 차이 {gap:.0%}), 30초 더 지켜봄",
                            "caution", mid, self._calls(["묶기"]))
         return mid
 
@@ -376,11 +376,11 @@ class Agent:
             tr.hold = None
             if m and t - m.last_seen > win and cand in self.allow:
                 self.allow[tr.meta_id] = self.allow[cand]
-                await self.log(t, "신호 감지", "30초 지켜본 결과 허용된 기기와 같은 기기 · 확인 끝", "info",
+                await self.log(t, "신호 감지", "30초 지켜본 결과 허용된 기기와 같은 기기, 확인 끝", "info",
                                tr.meta_id, self._calls(["묶기"]))
                 tr.status = "resolved"
                 return
-            await self.log(t, "신호 감지", "30초 지켜본 결과 다른 기기 · 새 기기로 계속 확인", "info", tr.meta_id, self._calls(["묶기"]))
+            await self.log(t, "신호 감지", "30초 지켜본 결과 다른 기기, 새 기기로 계속 확인", "info", tr.meta_id, self._calls(["묶기"]))
         if tr.status in ("approach", "requested", "searching", "resolved"):
             loc = self.locator.locate(w["rssi"], self.nodes_ok, self.down)
             if loc.p_inside >= 0.5:
@@ -405,7 +405,7 @@ class Agent:
                 return
             calls = self._calls(["묶기", "안/밖"])
             if tr.status != "outside":
-                await self.log(t, "신호 감지", f"교실 밖 신호 (교실 안 확률 {loc.p_inside:.0%}) · 확인 끝", "info", tr.meta_id, calls)
+                await self.log(t, "신호 감지", f"교실 밖 신호 (교실 안 확률 {loc.p_inside:.0%}), 확인 끝", "info", tr.meta_id, calls)
             tr.status, tr.consec, tr.high, tr.inside_since, tr.level = "outside", 0, 0, None, 0
             return
         tr.out_consec = 0
@@ -418,7 +418,7 @@ class Agent:
             self._calls(["묶기", "안/밖"])
             if tr.consec >= need and "noloc" not in tr.flags:
                 tr.flags.add("noloc")
-                await self.log(t, "신호 감지", f"{int(need * win)}초 연속 확인 → 숨은 기기 있음 · 수신기 {self.nodes_ok}/4라 위치 추정 중지 → 휴대형으로 교실 전체 순회 권장",
+                await self.log(t, "신호 감지", f"{int(need * win)}초 연속 확인 → 숨은 기기 있음, 수신기 {self.nodes_ok}/4라 위치 추정 중지 → 휴대형으로 교실 전체 순회 권장",
                                "caution", tr.meta_id, {"calls": ["묶기", "안/밖"], "skipped": ["위치", "종류", "용도", "점수"]})
             tr.status, tr.level = ("caution", 1) if tr.consec >= need else ("observing", 1)
             return
@@ -442,7 +442,7 @@ class Agent:
             tr.kind = "phone"
             if tr.usage and tr.usage[0] != "idle" and "wifi_first" not in tr.flags:
                 tr.flags.add("wifi_first")
-                await self.log(t, "위치 추정", f"Wi-Fi로 데이터를 보내는 중 · {USAGE_LABEL[tr.usage[0]]}로 보임 ({tr.usage[1]:.0%}) · 기기 종류는 신호 조합으로 판단",
+                await self.log(t, "위치 추정", f"Wi-Fi로 데이터를 보내는 중, {USAGE_LABEL[tr.usage[0]]}로 보임 ({tr.usage[1]:.0%}), 기기 종류는 신호 조합으로 판단",
                                "caution", tr.meta_id, {"calls": ["용도", "위치", "점수"], "skipped": ["종류"]})
         else:
             k = self.models.kind(tr.meta, guess_kind)
@@ -453,7 +453,7 @@ class Agent:
         score, ev = self._score(tr, loc, t)
         tr.score = score
         if tr.consec == need:
-            await self.log(t, "신호 감지", f"{int(need * win)}초 연속 확인 → 숨은 기기 있음, {loc.zone}구역 추정 · 위험 {score}점", "caution",
+            await self.log(t, "신호 감지", f"{int(need * win)}초 연속 확인 → 숨은 기기 있음, {loc.zone}구역 추정, 위험 {score}점", "caution",
                            tr.meta_id, calls)
         if score < self.caution_score:
             tr.status, tr.level, tr.high = "observing", 1, 0
@@ -497,14 +497,14 @@ class Agent:
         if strong_usage or gain <= loss:
             why = (f"{USAGE_LABEL[tr.usage[0]]} 패턴 → 확신이 낮아도 바로" if strong_usage
                    else "더 기다려도 위치가 크게 확실해지지 않음")
-            await self.log(t, "위치 추정", f"{why} → 휴대형 접근 · {loc.zone}구역", "caution", tr.meta_id,
+            await self.log(t, "위치 추정", f"{why} → 휴대형 접근, {loc.zone}구역", "caution", tr.meta_id,
                            {"gain": round(gain, 3), "loss": round(loss, 3)})
             await self._request(tr, t, 2, ev)
             return
         tr.status, tr.level = "caution", 1
         if "lv1" not in tr.flags or tr.zn % 3 == 0:
             tr.flags.add("lv1")
-            await self.log(t, "위치 추정", f"위험 {score}점 · 위치 확신 {loc.zone_prob:.0%} → 더 지켜볼 가치가 큼, 30초 더 관찰",
+            await self.log(t, "위치 추정", f"위험 {score}점, 위치 확신 {loc.zone_prob:.0%} → 더 지켜볼 가치가 큼, 30초 더 관찰",
                            "caution", tr.meta_id, {"gain": round(gain, 3), "loss": round(loss, 3)})
 
     def _score(self, tr: Track, loc: LocationResult, t: float) -> tuple[int, list[dict[str, Any]]]:
@@ -540,37 +540,37 @@ class Agent:
         # 우회 행동 근거 (v11 10장): 끊어 보내기 · 접근 시 끄기 · 주소 자주 바꾸기 · 허용 기기 위장
         habit: list[dict[str, Any]] = []
         if tr.bursts >= 2:
-            habit.append({"label": "끊어 보내기", "value": f"이번 교시 {tr.bursts + 1}번 나눠 잡힘 · 누적 {int(tr.seen_sec)}초", "source": "교시 누적",
+            habit.append({"label": "끊어 보내기", "value": f"이번 시험에서 {tr.bursts + 1}번 나눠 잡힘, 누적 {int(tr.seen_sec)}초", "source": "시험 중 누적",
                           "points": round(habit_pts["끊어 보내기"]), "habit": True})
         if "approach_off" in tr.flags:
             habit.append({"label": "접근 반응", "value": "휴대형이 다가오자 신호가 꺼졌다가 다시 켜짐", "source": "순회 기록",
                           "points": round(habit_pts["접근 반응"]), "habit": True})
         if "rotate" in tr.flags:
-            habit.append({"label": "주소 변경", "value": "1분에 여러 번 주소를 바꿈 · 비정상적으로 잦음", "source": "AI 기기 묶기 모델",
+            habit.append({"label": "주소 변경", "value": "1분에 여러 번 주소를 바꿈, 비정상적으로 잦음", "source": "AI 기기 묶기 모델",
                           "points": round(habit_pts["주소 변경"]), "habit": True})
         if "spoof" in tr.flags:
-            habit.append({"label": "허용 기기", "value": "입실 전 자리와 다른 좌석 쪽에서 잡힘 · 위장 의심", "source": "입실 전 세기 패턴 대조",
+            habit.append({"label": "허용 기기", "value": "입실 전 자리와 다른 좌석 쪽에서 잡힘, 위장 의심", "source": "입실 전 세기 패턴 대조",
                           "points": round(habit_pts["허용 기기"]), "habit": True})
         seats = seats_of_zone(loc.zone)
         top2 = sorted(loc.zone_probs.items(), key=lambda kv: -kv[1])[:2]
         ai = loc.method  # "AI" · "AI 3대용" · "규칙 (장비 이상)" · "규칙 (모델 오류)" -> 근거 카드 출처에 그대로 표시
         rule = not ai.startswith("AI")
         ev = [
-            {"label": "교실 안", "value": f"확률 {tr.p_in:.0%} · {loc.inside_reason}",
-             "source": f"규칙 점수 · {ai[4:-1]}" if rule else f"{ai} 안/밖 모델 · 모의 학습",
+            {"label": "교실 안", "value": f"확률 {tr.p_in:.0%}, {loc.inside_reason}",
+             "source": f"규칙 점수 ({ai[4:-1]})" if rule else f"{ai} 안/밖 모델 (모의 학습)",
              "points": round(p["교실 안"])},
             {"label": "대략 구역", "value": f"{loc.zone}구역 ({seats[0]}~{seats[-1]}번) {loc.zone_prob:.0%}"
-             + (f" · 2순위 {top2[1][0]}구역 {top2[1][1]:.0%}" if len(top2) > 1 and top2[1][1] > 0 else "")
-             + f" · {tr.zn}개 창 누적", "source": f"규칙 점수 · {ai[4:-1]}" if rule else f"{ai} 위치 모델 · 모의 학습", "points": None},
+             + (f", 2순위 {top2[1][0]}구역 {top2[1][1]:.0%}" if len(top2) > 1 and top2[1][1] > 0 else "")
+             + f", {tr.zn}개 창 누적", "source": f"규칙 점수 ({ai[4:-1]})" if rule else f"{ai} 위치 모델 (모의 학습)", "points": None},
         ]
         if use:
-            ev.append({"label": "통신 용도", "value": f"Wi-Fi {USAGE_LABEL[use[0]]} {use[1]:.0%}", "source": "AI 용도 모델 · 논문 수치 모의 학습",
+            ev.append({"label": "통신 용도", "value": f"Wi-Fi {USAGE_LABEL[use[0]]} {use[1]:.0%}", "source": "AI 용도 모델 (논문 수치로 모의 학습)",
                        "points": round(p["통신 용도"])})
-            ev.append({"label": "기기 종류", "value": "블루투스와 Wi-Fi가 함께 잡힘 → 휴대폰 · 카메라 안경 계열", "source": "신호 조합 (종류 모델 건너뜀)",
+            ev.append({"label": "기기 종류", "value": "블루투스와 Wi-Fi가 함께 잡힘 → 휴대폰이나 카메라 안경 계열", "source": "신호 조합 (종류 모델 건너뜀)",
                        "points": round(p["기기 종류"])})
         elif tr.kind_method == "AI":
-            ev.append({"label": "기기 종류", "value": f"{KIND_LABEL[tr.kind]} {tr.kind_p:.0%} (블루투스 광고 간격 {tr.meta.get('interval', '?')}ms · 제조사)",
-                       "source": "AI 종류 모델 · 모의 학습", "points": round(p["기기 종류"])})
+            ev.append({"label": "기기 종류", "value": f"{KIND_LABEL[tr.kind]} {tr.kind_p:.0%} (블루투스 광고 간격 {tr.meta.get('interval', '?')}ms, 제조사)",
+                       "source": "AI 종류 모델 (모의 학습)", "points": round(p["기기 종류"])})
         else:
             ev.append({"label": "기기 종류", "value": f"{KIND_LABEL[tr.kind]} 추정 (블루투스 신호 간격 {tr.meta.get('interval', '?')}ms)",
                        "source": "규칙 (종류 모델 없음)", "points": round(p["기기 종류"])})
@@ -599,7 +599,7 @@ class Agent:
         if "hold" in tr.flags:
             out.append("비슷한 기기가 있어 다른 기기 신호와 섞였을 수 있음")
         out.append("통신 용도 판단은 실제 시험장에서 아직 검증 전" if tr.usage
-                   else f"기기 종류는 블루투스 광고 간격 · 제조사로 추정 ({tr.kind_p:.0%} · 모의 학습, 팀 기기로 검증 전)" if tr.kind_method == "AI"
+                   else f"기기 종류는 블루투스 광고 간격과 제조사로 추정 ({tr.kind_p:.0%}, 모의 학습, 팀 기기로 검증 전)" if tr.kind_method == "AI"
                    else "기기 종류는 블루투스 신호 간격으로 추정한 것")
         return out
 
@@ -630,12 +630,12 @@ class Agent:
         tr.request_id, tr.level = req.id, level
         tr.status = "approach" if level == 2 else "requested"
         if level == 2:
-            await self.log(t, "수색", f"휴대형 접근 요청 · {z}구역({req.seats[0]}~{req.seats[-1]}번) · 위험 {tr.score}점", "alert",
+            await self.log(t, "수색", f"휴대형 접근 요청, {z}구역({req.seats[0]}~{req.seats[-1]}번), 위험 {tr.score}점", "alert",
                            tr.meta_id, {"request_id": req.id})
         else:
             who = f"{req.suspect_seat}번 좌석" if req.suspect_seat else f"{z}구역"
             n = sum(1 for e in ev if (e.get("points") or 0) >= 10)
-            await self.log(t, "수색", f"정밀 수색 요청 · {who} · 위험 {tr.score}점 (기준 점수 이상이 30초 계속 · 근거 {n}개)", "alert",
+            await self.log(t, "수색", f"정밀 수색 요청, {who}, 위험 {tr.score}점 (기준 점수 이상이 30초 계속, 근거 {n}개)", "alert",
                            tr.meta_id, {"request_id": req.id})
         await self.emit("request", req.model_dump(mode="json"))
 
@@ -647,24 +647,24 @@ class Agent:
             if tr:
                 tr.status = "resolved"
             self.review.append({"request_id": req.id, "result": "found", "device_id": req.device_id})
-            await self.log(t, "결과 반영", f"기기 발견 · {req.found_seat or '-'}번 → 정답으로 기록 · 학습은 시험 후 사람 검토를 거쳐 반영", "done", req.device_id)
+            await self.log(t, "결과 반영", f"기기 발견, {req.found_seat or '-'}번 → 정답으로 기록, 학습은 시험 후 사람 검토를 거쳐 반영", "done", req.device_id)
             return "found"
         signal_on = tr is not None and t - tr.last_inside <= 30
         if signal_on and req.level < 4:
-            await self.log(t, "결과 반영", "못 찾았는데 신호가 계속 잡힘 → 2차 수색 요청 (소지품 · 책상 · 다른 부위)", "alert",
+            await self.log(t, "결과 반영", "못 찾았는데 신호가 계속 잡힘 → 2차 수색 요청 (소지품, 책상, 다른 부위)", "alert",
                            req.device_id)
             return "second"
         if signal_on:
             if tr:
                 tr.status = "resolved"
             self.review.append({"request_id": req.id, "result": "unresolved", "device_id": req.device_id})
-            await self.log(t, "결과 반영", "2차 수색에서도 못 찾음 · 신호는 계속 → 미해결로 기록, 시험 후 사람이 검토", "caution", req.device_id)
+            await self.log(t, "결과 반영", "2차 수색에서도 못 찾음, 신호는 계속 → 미해결로 기록, 시험 후 사람이 검토", "caution", req.device_id)
             return "unresolved"
-        self.allow[req.device_id] = "수색 후 미발견 · 신호 사라짐"
+        self.allow[req.device_id] = "수색 후 미발견 (신호 사라짐)"
         if tr:
             tr.status = "resolved"
         self.review.append({"request_id": req.id, "result": "not_found", "device_id": req.device_id})
-        await self.log(t, "결과 반영", "못 찾았고 신호도 사라짐 → 오탐으로 기록 · 시험 중 기준은 그대로, 학습은 시험 후 사람 검토를 거쳐 반영", "done", req.device_id)
+        await self.log(t, "결과 반영", "못 찾았고 신호도 사라짐 → 오탐으로 기록, 시험 중 기준은 그대로, 학습은 시험 후 사람 검토를 거쳐 반영", "done", req.device_id)
         return "not_found"
 
     async def allow_manual(self, meta_id: str, label: str, t: float) -> None:
@@ -673,7 +673,7 @@ class Agent:
         tr = self.tracks.get(meta_id)
         if tr:
             tr.status, tr.level = "resolved", 0
-        await self.log(t, "준비", f"감독관이 허용 목록에 추가 · {label} · 확인 끝", "done", meta_id)
+        await self.log(t, "준비", f"감독관이 허용 목록에 추가, {label}, 확인 끝", "done", meta_id)
 
     def snapshot(self) -> list[dict[str, Any]]:
         out = []

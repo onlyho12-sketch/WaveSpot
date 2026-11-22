@@ -9,7 +9,7 @@ router = APIRouter(tags=["exam"])
 
 
 class NewSession(BaseModel):
-    name: str = "3교시 수학"
+    name: str = "컴퓨터활용능력 2급"
     scenario: str = "demo"
     rows: int = 4
     cols: int = 10

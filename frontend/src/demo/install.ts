@@ -3,7 +3,7 @@
 // 화면 코드(api.ts · live.ts)는 현장 서버에 붙을 때와 똑같이 동작함.
 const DEMO = import.meta.env.VITE_DEMO === "1"
 
-const STEPS = ["실행 환경 받기 (Python · WebAssembly)", "AI 라이브러리 받기 (scikit-learn 등)", "현장 서버 코드 · 모델 파일 받기", "AI 모델 6개 불러오기 · 시험 교시 준비"]
+const STEPS = ["실행 환경 받기 (Python, WebAssembly)", "AI 라이브러리 받기 (scikit-learn 등)", "현장 서버 코드와 모델 파일 받기", "AI 모델 6개 불러오고 시험 준비"]
 
 function overlay() {
   const el = document.createElement("div")
@@ -16,10 +16,10 @@ function overlay() {
         <img src="/icon.png" alt="" width="40" height="40" style="border-radius:10px"/>
         <div>
           <div style="font-size:18px;font-weight:700">WaveSpot 시연 준비 중</div>
-          <div style="font-size:13px;color:#64748b;margin-top:2px">처음 한 번 30초~1분 걸립니다 · 다음부터는 더 빨라요</div>
+          <div style="font-size:13px;color:#64748b;margin-top:2px">처음 한 번은 30초~1분 걸립니다. 다음부터는 더 빨라요</div>
         </div>
       </div>
-      <p style="font-size:14px;line-height:1.6;color:#334155;margin:16px 0 14px">현장 서버(AI 에이전트 · AI 모델 6개)를 이 브라우저 안에서 그대로 실행합니다. 설치나 로그인은 필요 없습니다.</p>
+      <p style="font-size:14px;line-height:1.6;color:#334155;margin:16px 0 14px">현장 서버(AI 에이전트와 AI 모델 6개)를 이 브라우저 안에서 그대로 실행합니다. 설치나 로그인은 필요 없습니다.</p>
       <ol data-steps style="list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:14px"></ol>
       <div data-err style="display:none;margin-top:14px;font-size:13px;color:#b91c1c;line-height:1.5"></div>
     </div>`

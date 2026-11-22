@@ -41,7 +41,7 @@ export function RoamIndex() {
                   <Shape tone={r.level >= 3 ? "danger" : "warn"} className="size-4" />
                   <div className="min-w-0 flex-1">
                     <div className="text-lg font-bold">{target(r)}</div>
-                    <div className="num text-sm text-fg-3">{requestTitle(r)} · {clockOf(r.sim_time, start)}{r.state === "searching" ? " · 순회 중" : ""}</div>
+                    <div className="num text-sm text-fg-3">{requestTitle(r)}, {clockOf(r.sim_time, start)}{r.state === "searching" ? ", 순회 중" : ""}</div>
                   </div>
                   <ChevronRight className="size-5 text-fg-3" />
                 </Link>
@@ -88,12 +88,13 @@ export function Roam() {
   )
 
   // ② 순회 중
-  const stallNote = "휴대형 수신기 신호가 오지 않습니다 · 수신기 전원을 확인하세요"
+  const stallNote = "휴대형 수신기 신호가 오지 않습니다. 수신기 전원을 확인하세요"
   if (req.state === "searching" && stalled && medians)
     return <Result req={req} head={head} medians={medians} best={best} rows={rows} cols={cols} phone={phone} notice={`${stallNote}. 직전 순회 결과로 입력할 수 있습니다.`} />
   if (req.state === "searching") {
     return (
-      <div className="flex flex-col gap-3 medium:gap-4">
+      // 태블릿 · PC: 상단 바(3.5rem) · 본문 여백(2rem) · 아래 탭(태블릿 세로 4rem)을 뺀 높이를 모두 채움
+      <div className="flex flex-col gap-3 medium:min-h-[calc(100dvh-3.5rem-2rem-4rem)] medium:gap-4 expanded:min-h-[calc(100dvh-3.5rem-2rem)]">
         {head}
         {step ? (
           <Precision step={step} fullscreen={phone} />
@@ -248,9 +249,9 @@ function Precision({ step, fullscreen }: { step: HandheldStep; fullscreen: boole
   return (
     <section aria-live="polite"
       className={cn("flex flex-col text-white transition-colors duration-300", lv.bg,
-        fullscreen ? "fixed inset-0 z-50 px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]" : "min-h-[520px] rounded-lg p-6")}>
+        fullscreen ? "fixed inset-0 z-50 px-6 pt-[max(1.5rem,env(safe-area-inset-top))] pb-[max(1.5rem,env(safe-area-inset-bottom))]" : "min-h-[420px] flex-1 rounded-lg p-6")}>
       <div className="text-fs13 font-semibold tracking-wide opacity-70">
-        순회 중{step.zones && step.zones.length > 1 ? ` · ${step.zones.length}곳 중 ${(step.zone_index ?? 0) + 1}번째` : ""} · {step.pass}회차
+        순회 중{step.zones && step.zones.length > 1 ? `, ${step.zones.length}곳 중 ${(step.zone_index ?? 0) + 1}번째` : ""}, {step.pass}회차
       </div>
       <div className="mt-0.5 flex items-baseline gap-3">
         <span className="text-fs22 font-bold">지금 {step.zone}구역</span>
@@ -258,7 +259,7 @@ function Precision({ step, fullscreen }: { step: HandheldStep; fullscreen: boole
       </div>
 
       <div className="grid flex-1 place-items-center py-4">
-        <div className="relative size-[min(68vw,240px)]">
+        <div className="relative size-[min(68vw,240px)] expanded:size-[min(40dvh,340px)]">
           {/* 진동과 같은 박자로 바깥에 고리가 퍼짐 (진동을 꺼도 화면으로 알 수 있게). 0.3초 진동은 화면에선 너무 빨라 0.6초 */}
           {lv.every > 0 && (
             <span key={step.level} aria-hidden className="absolute inset-0 animate-roam-rip rounded-full border-[3px] border-white/75 opacity-0"
@@ -283,7 +284,7 @@ function Precision({ step, fullscreen }: { step: HandheldStep; fullscreen: boole
 
       <div className="mt-6 flex items-center gap-4">
         <RoundButton label="닫기" onClick={() => navigate({ to: "/" })}><X className="size-6" /></RoundButton>
-        <span className="flex-1 text-center text-sm opacity-80">{buzz ? lv.buzz : "진동 꺼짐"} · 좌석 옆 {step.dwell ?? 2}초</span>
+        <span className="flex-1 text-center text-sm opacity-80">{buzz ? lv.buzz : "진동 꺼짐"}, 좌석 옆 {step.dwell ?? 2}초</span>
         <RoundButton label={buzz ? "진동 끄기" : "진동 켜기"} onClick={() => setBuzz((b) => !b)}>
           {buzz ? <Vibrate className="size-6" /> : <VibrateOff className="size-6" />}
         </RoundButton>
@@ -397,16 +398,16 @@ function Result({ req, head, medians, best, rows, cols, phone, notice }: {
         <p className="mt-2 text-fs13 leading-snug text-fg-3">
           {req.level === 4
             ? "2차에서도 못 찾았는데 신호가 계속되면 '미해결'로 기록되고 시험 후 사람이 검토합니다."
-            : "못 찾았는데 신호가 계속 잡히면 2차 수색(소지품 · 책상 · 다른 부위)을 요청하고, 이 결과는 학습에 쓰지 않습니다."}
+            : "못 찾았는데 신호가 계속 잡히면 2차 수색(소지품, 책상, 다른 부위)을 요청하고, 이 결과는 학습에 쓰지 않습니다."}
         </p>
       )}
       {err && <p role="alert" className="mt-3 text-sm font-semibold text-danger">{err}</p>}
       {queued && (
         <p role="status" className="mt-4 rounded-md bg-warn-soft px-3 py-2.5 text-sm font-semibold text-warn">
-          전송 대기 · 서버가 저장을 확인하지 않아 태블릿에 먼저 저장했습니다. 연결되면 자동으로 보냅니다.
+          전송 대기. 서버가 저장을 확인하지 않아 태블릿에 먼저 저장했습니다. 연결되면 자동으로 보냅니다.
         </p>
       )}
-      {!isOpen(req) && <p className="mt-4 text-sm text-fg-2">입력 완료 · {DONE_LABEL[req.state]}{req.found_seat ? ` (${req.found_seat}번)` : ""}</p>}
+      {!isOpen(req) && <p className="mt-4 text-sm text-fg-2">입력 완료: {DONE_LABEL[req.state]}{req.found_seat ? ` (${req.found_seat}번)` : ""}</p>}
       {isOpen(req) && !canResult && !queued && <p className="mt-4 text-sm text-fg-2">정밀 수색 요청이 오면 결과를 입력합니다.</p>}
     </Panel>
   )
