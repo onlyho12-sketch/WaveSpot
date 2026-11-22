@@ -1,0 +1,12 @@
+{
+  "appId": "com.wavespot.supervisor",
+  "appName": "WaveSpot",
+  "webDir": "www",
+  "server": {
+    "url": "https://wavespot-daup.vercel.app",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

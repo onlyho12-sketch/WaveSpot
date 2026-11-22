@@ -1,0 +1,10 @@
+{
+  "name": "wavespot-apk",
+  "private": true,
+  "description": "WaveSpot 감독관 앱 APK (배포판 시연 화면을 앱으로 엶)",
+  "dependencies": {
+    "@capacitor/android": "^8.6.2",
+    "@capacitor/cli": "^8.6.2",
+    "@capacitor/core": "^8.6.2"
+  }
+}
