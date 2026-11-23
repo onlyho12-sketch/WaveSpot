@@ -33,6 +33,7 @@
 | **첫 화면까지** | 처음 20초 안팎 · 다시 열면 10초 남짓 |
 | **권장 화면** | 태블릿 가로 · PC 브라우저 · 휴대폰 |
 | **안드로이드 앱** | [Releases에서 APK 받기](https://github.com/onlyho12-sketch/WaveSpot/releases/latest) · 웹 시연판을 전체 화면으로 엶 |
+| **시연 영상** | [시연 영상 보기 (MP4 · 32MB)](docs/시연영상/%5BDAUP%5D_BLE%2C%20Wi-Fi%20%EC%8B%A0%ED%98%B8%20%EB%B6%84%EC%84%9D%20%EA%B8%B0%EB%B0%98%20%EC%8B%9C%ED%97%98%20%EB%B6%80%EC%A0%95%ED%96%89%EC%9C%84%20%ED%83%90%EC%A7%80%20AI%20%EC%97%90%EC%9D%B4%EC%A0%84%ED%8A%B8_AI%20%ED%95%B4%EC%BB%A4%ED%86%A4_261123_%EC%8B%9C%EC%97%B0%EC%98%81%EC%83%81.mp4) |
 | **데이터** | 공개 데이터 · 논문 수치로 만든 모의 데이터 (실측 아님) |
 
 </td>
