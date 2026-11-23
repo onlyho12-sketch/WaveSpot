@@ -155,7 +155,7 @@ function Shell({ role }: { role: Role }) {
 
             <div className="border-l border-line pl-3 text-right medium:pl-4">
               <div className="num text-xl leading-none font-bold medium:text-fs22">{running || clock?.state === "ended" ? clock!.clock.slice(0, 5) : "--:--"}</div>
-              <div className="num mt-1 text-xs text-fg-3">{running ? `남은 ${left}분` : clock?.state === "ended" ? "종료" : "시작 전"}</div>
+              <div className="num mt-1 text-xs leading-none text-fg-3">{running ? `남은 ${left}분` : clock?.state === "ended" ? "종료" : "시작 전"}</div>
             </div>
 
             {/* 로그인한 계정 · 로그아웃 (휴대폰은 아이콘만) */}

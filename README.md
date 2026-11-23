@@ -14,7 +14,7 @@
 
 <br/>
 
-<img src="docs/images/hero_v2.png" width="92%" alt="WaveSpot 감독관 앱 · 태블릿과 휴대폰 화면"/>
+<img src="docs/images/hero_v3.png" width="92%" alt="WaveSpot 감독관 앱 · 태블릿과 휴대폰 화면"/>
 
 </div>
 
